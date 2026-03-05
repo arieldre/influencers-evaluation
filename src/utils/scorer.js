@@ -1,0 +1,306 @@
+/**
+ * QS Scorer — category-aware, matches Colab pipeline v3 exactly.
+ */
+
+// ── Category keywords ──
+const GAMING_KEYWORDS = [
+  'call of duty','cod','cs2','valorant','gta','fps','shooter','warzone',
+  'gaming','games','game review','rust','dayz','marvel rivals','multi gaming',
+  'mobile shooter','guns','weapons','military','war game',
+  'battlefield','apex','halo','destiny','fortnite','pubg','rainbow six',
+  'escape from tarkov','tarkov','arma','squad','hell let loose',
+];
+
+const MOBILE_KEYWORDS = [
+  'mobile game','mobile gaming','ios game','android game','app game',
+  'casual game','hyper casual','gacha','idle game',
+  'clash royale','clash of clans','clash','brawl stars',
+  'genshin impact','genshin','honkai','honkai impact','honkai star rail',
+  'mobile legends','mobile legend',
+  'arena of valor','aov',
+  'free fire','garena',
+  'pubg mobile','pubg lite',
+  'call of duty mobile','cod mobile','codm',
+  'pokemon go','pokemon unite','pokemon master',
+  'candy crush','candy saga',
+  'among us',
+  'rise of kingdoms','rise of empire','lords mobile','war robots',
+  'state of survival','whiteout survival','last shelter',
+  'age of empires mobile','total battle','evony',
+  'hay day','boom beach','supercell',
+  'summoners war','raid shadow legends','raid:','afk arena','afk journey',
+  'magic chess','auto chess','tft mobile',
+  'tower of fantasy','nikke','blue archive',
+  'dragon city','monster legends',
+  'subway surfers','temple run',
+  'stumble guys','fall guys mobile',
+  'diablo immortal','diablo mobile',
+  'league of legends wild rift','wild rift',
+  'teamfight tactics mobile',
+  'minecraft','roblox',
+];
+
+const AUTO_DECLINE_CATS = ['roblox', 'minecraft', 'fortnite'];
+
+// ── Defaults (overridable via config param) ──
+const DEFAULTS = {
+  AVG_CPM_INT: 27.13,
+  AVG_CPM_DED: 96.67,
+  GREEN_E_INT: 0.55,
+  YELLOW_E_INT: 0.85,
+  GREEN_E_DED: 1.45,
+  YELLOW_E_DED: 2.20,
+  CATEGORY_AUD_MULT: { gaming: 0.90, non_gaming: 1.00, mobile: 1.10 },
+};
+
+// ── Helpers ──
+
+function detectCategoryProfile(category) {
+  const cat = String(category).toLowerCase();
+  if (MOBILE_KEYWORDS.some(k => cat.includes(k))) return 'mobile';
+  if (GAMING_KEYWORDS.some(k => cat.includes(k))) return 'gaming';
+  return 'non_gaming';
+}
+
+function parseGeo(geoStr) {
+  let us = 0, uk = 0, ca = 0, au = 0;
+  if (!geoStr || geoStr === 'nan') return { us, uk, ca, au };
+  const g = String(geoStr);
+  for (const [code, setter] of [['US', v => us = v], ['UK', v => uk = v], ['CA', v => ca = v], ['AU', v => au = v]]) {
+    const m = g.match(new RegExp(`${code}\\s*(\\d+)`));
+    if (m) setter(parseInt(m[1]) / 100);
+  }
+  return { us, uk, ca, au };
+}
+
+function viewMultiplier(ratio) {
+  if (ratio == null) return { mult: 1.0, label: '' };
+  if (ratio >= 1.50) return { mult: 1.50, label: 'a lot higher views' };
+  if (ratio >= 1.25) return { mult: 1.25, label: 'a bit higher views' };
+  if (ratio <= 0.50) return { mult: 0.50, label: 'a lot lower views' };
+  if (ratio <= 0.75) return { mult: 0.80, label: 'a bit lower views' };
+  return { mult: 1.00, label: '' };
+}
+
+function parseNoteRatio(noteStr, claimedViews) {
+  if (!noteStr || noteStr.trim() === '' || noteStr === 'nan') return null;
+  const note = noteStr.toLowerCase().trim();
+
+  let m = note.match(/(?:x\s*)?(\d+\.?\d*)\s*x/);
+  if (m) return parseFloat(m[1]);
+
+  m = note.match(/^(\d+\.\d+)$/);
+  if (m) {
+    const v = parseFloat(m[1]);
+    if (v >= 0.1 && v <= 5.0) return v;
+  }
+
+  m = note.match(/(\d[\d,]*\.?\d*)\s*(k|m|thousand|million)?/);
+  if (m) {
+    let num = parseFloat(m[1].replace(/,/g, ''));
+    const unit = (m[2] || '').toLowerCase();
+    if (unit === 'k' || unit === 'thousand') num *= 1000;
+    else if (unit === 'm' || unit === 'million') num *= 1_000_000;
+    if (claimedViews > 0 && num > 500) {
+      return Math.round((num / claimedViews) * 1000) / 1000;
+    }
+  }
+
+  return null;
+}
+
+// ── Main scorer ──
+
+export function scoreCreators(creators, config = {}) {
+  const cfg = { ...DEFAULTS, ...config };
+  const {
+    AVG_CPM_INT, AVG_CPM_DED,
+    GREEN_E_INT, YELLOW_E_INT,
+    GREEN_E_DED, YELLOW_E_DED,
+    CATEGORY_AUD_MULT,
+  } = cfg;
+
+  const results = [];
+
+  for (const c of creators) {
+    const category = c.category || '';
+    const fmt = (c.format || '').toLowerCase();
+    const er = c.er || 0;
+    const claimedViews = c.claimed_views || 0;
+    const price = c.price || 0;
+    const zorkaCpm = c.zorka_cpm || 0;
+    const notes = c.notes || '';
+    const api = c.api || {};
+    const actualAvg = api.avg || 0;
+    const stability = (api.stability || '').toLowerCase();
+    const apiRatio = api.ratio ?? null;
+    const apiError = api.error || '';
+    const subWarn = api.sub_warn || '';
+
+    const catKey = detectCategoryProfile(category);
+    const audMult = CATEGORY_AUD_MULT[catKey] ?? 1.0;
+
+    function makeResult(dec, overrides = {}) {
+      return {
+        decision: dec,
+        name: c.name,
+        link: c.link,
+        format: fmt,
+        category,
+        cat_profile: catKey,
+        price,
+        claimed_views: claimedViews,
+        actual_avg: actualAvg,
+        zorka_cpm: zorkaCpm,
+        real_cpm: 0,
+        qs: 0,
+        e: 999,
+        offer: '',
+        discount: '',
+        stability,
+        cv: api.cv ?? 0,
+        view_ratio: null,
+        view_label: '',
+        view_mult_used: 1.0,
+        view_source: 'none',
+        auto_comment: '',
+        sub_warn: subWarn,
+        api_error: apiError,
+        er,
+        geo: c.geo || '',
+        ...overrides,
+      };
+    }
+
+    // Auto-decline
+    if (AUTO_DECLINE_CATS.some(kw => category.toLowerCase().includes(kw))) {
+      results.push(makeResult('AUTO-DECLINE', { auto_comment: `auto-decline: ${category}` }));
+      continue;
+    }
+
+    // Error
+    if (apiError && apiError !== '' && apiError !== 'nan') {
+      results.push(makeResult('ERROR', { auto_comment: `ERROR: ${apiError}` }));
+      continue;
+    }
+
+    if (stability === 'no data') {
+      results.push(makeResult('ERROR', { auto_comment: 'no recent videos in last 3 months' }));
+      continue;
+    }
+
+    // Stability multiplier
+    let stabMult, stabLabel;
+    if (stability === 'stable' || stability === 'somewhat stable') {
+      stabMult = 1.0; stabLabel = stability;
+    } else if (stability === 'dead channel') {
+      stabMult = 0.3; stabLabel = 'dead channel';
+    } else if (stability === 'unknown') {
+      stabMult = 0.5; stabLabel = 'unknown stability';
+    } else {
+      stabMult = 0.5; stabLabel = stability || 'unknown';
+    }
+
+    // Audience score
+    const { us, uk, ca, au } = parseGeo(c.geo);
+    const tier1Rest = uk + ca + au;
+    const male25plus = (c.m2534 || 0) + (c.m3544 || 0) + (c.m45 || 0);
+    let aud = ((us * 2.0) + (tier1Rest * 0.8) + (male25plus * 1.0) + ((c.m1824 || 0) * 0.2)) * audMult;
+
+    let qs = aud * stabMult;
+
+    // ER
+    if (er > 0.05) qs *= 1.3;
+    else if (er < 0.03) qs *= 0.9;
+
+    // Low US penalty
+    if (us < 0.15) qs *= 0.6;
+
+    // View multiplier
+    let viewRatio = null, viewLabel = '', viewMult = 1.0, viewSource = 'none';
+    if (apiRatio != null && apiRatio > 0) {
+      viewRatio = apiRatio;
+      const vm = viewMultiplier(viewRatio);
+      viewMult = vm.mult; viewLabel = vm.label;
+      viewSource = 'API';
+    } else {
+      const noteRatio = parseNoteRatio(notes, claimedViews);
+      if (noteRatio != null) {
+        viewRatio = noteRatio;
+        const vm = viewMultiplier(viewRatio);
+        viewMult = vm.mult; viewLabel = vm.label;
+        viewSource = 'notes';
+      }
+    }
+
+    qs *= viewMult;
+    qs = Math.round(qs * 1000) / 1000;
+
+    // E ratio
+    const isDed = fmt.includes('ded');
+    const cpmBench = isDed ? AVG_CPM_DED : AVG_CPM_INT;
+    const greenLim = isDed ? GREEN_E_DED : GREEN_E_INT;
+    const yellowLim = isDed ? YELLOW_E_DED : YELLOW_E_INT;
+
+    const realCpm = (actualAvg > 0 && price > 0)
+      ? Math.round(((price / actualAvg) * 1000) * 100) / 100
+      : zorkaCpm;
+
+    const e = qs > 0
+      ? Math.round((zorkaCpm / (cpmBench * qs)) * 1000) / 1000
+      : 999;
+
+    // Decision
+    let dec;
+    if (stability === 'dead channel') {
+      dec = 'RED';
+    } else {
+      dec = e <= greenLim ? 'GREEN' : (e <= yellowLim ? 'YELLOW' : 'RED');
+    }
+
+    // Negotiation
+    let offer = '', discount = '';
+    if (dec === 'YELLOW' && zorkaCpm > 0) {
+      const targetCpm = greenLim * cpmBench * qs;
+      const d = Math.max((zorkaCpm - targetCpm) / zorkaCpm, 0);
+      offer = Math.round(price * (1 - d));
+      discount = `${Math.round(d * 100)}%`;
+    }
+
+    // Comment
+    const parts = [stabLabel, `[${catKey}]`];
+    if (viewLabel) parts.push(viewLabel + (viewSource === 'notes' ? ' (notes)' : ''));
+    if (subWarn && subWarn !== 'nan') parts.push('check channel');
+    const autoComment = parts.join(', ');
+
+    results.push(makeResult(dec, {
+      qs,
+      e,
+      real_cpm: realCpm,
+      offer,
+      discount,
+      view_ratio: viewRatio,
+      view_label: viewLabel,
+      view_mult_used: viewMult,
+      view_source: viewSource,
+      auto_comment: autoComment,
+    }));
+  }
+
+  return results;
+}
+
+export function summarizeResults(results) {
+  const greens = results.filter(r => r.decision === 'GREEN').sort((a, b) => a.e - b.e);
+  const yellows = results.filter(r => r.decision === 'YELLOW').sort((a, b) => a.e - b.e);
+  const reds = results.filter(r => r.decision === 'RED');
+  const errors = results.filter(r => r.decision === 'ERROR');
+  const declines = results.filter(r => r.decision === 'AUTO-DECLINE');
+
+  const greenSpend = greens.reduce((s, r) => s + r.price, 0);
+  const yellowOffer = yellows.reduce((s, r) => s + (typeof r.offer === 'number' ? r.offer : 0), 0);
+
+  return { greens, yellows, reds, errors, declines, greenSpend, yellowOffer };
+}
+
+export { detectCategoryProfile, DEFAULTS };

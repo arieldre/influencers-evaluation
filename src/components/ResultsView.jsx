@@ -171,6 +171,9 @@ export default function ResultsView({ summary }) {
               <th>Stability</th>
               <th>Face</th>
               <th>Charisma</th>
+              <th>Real ER</th>
+              <th>Cmnt Rate</th>
+              <th>Upload/days</th>
               <th>Comment</th>
             </tr>
           </thead>
@@ -232,13 +235,22 @@ export default function ResultsView({ summary }) {
                       : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
                     }
                   </td>
+                  <td className="num" style={{ fontSize: '0.8rem' }}>
+                    {r.real_er != null ? (r.real_er * 100).toFixed(2) + '%' : '—'}
+                  </td>
+                  <td className="num" style={{ fontSize: '0.8rem' }}>
+                    {r.comment_rate != null ? (r.comment_rate * 100).toFixed(2) + '%' : '—'}
+                  </td>
+                  <td className="num" style={{ fontSize: '0.8rem' }}>
+                    {r.upload_freq != null ? r.upload_freq + 'd' : '—'}
+                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={20} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={23} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

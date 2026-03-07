@@ -118,6 +118,8 @@ async function getRecentVideos(apiKey, playlistId) {
       vids.push({
         id: it.id,
         views: parseInt(it.statistics.viewCount || '0', 10),
+        likes: parseInt(it.statistics.likeCount || '0', 10),
+        comments: parseInt(it.statistics.commentCount || '0', 10),
         pub,
         is_short: dur > 0 && dur < 180,
       });
@@ -153,7 +155,7 @@ function analyzeViews(allVids, claimedViews) {
     return {
       stability: 'no data', cv: null, avg: 0, median: 0,
       video_count: 0, view_label: '', ratio: null,
-      video_ids: [],
+      video_ids: [], real_er: null, comment_rate: null, upload_freq: null,
       api_notes: 'no recent videos',
     };
   }
@@ -203,10 +205,32 @@ function analyzeViews(allVids, claimedViews) {
     apiNotes += ` | ${ratio.toFixed(2)}x claimed`;
   }
 
+  // Real ER and comment rate from API data (zero extra quota)
+  const withViews = valid.filter(v => v.views > 0);
+  const real_er = withViews.length
+    ? Math.round(withViews.reduce((s, v) => s + v.likes / v.views, 0) / withViews.length * 10000) / 10000
+    : null;
+  const comment_rate = withViews.length
+    ? Math.round(withViews.reduce((s, v) => s + v.comments / v.views, 0) / withViews.length * 10000) / 10000
+    : null;
+
+  // Upload frequency — avg days between consecutive videos
+  let upload_freq = null;
+  if (valid.length >= 2) {
+    const sorted = [...valid].sort((a, b) => b.pub - a.pub);
+    const gaps = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      gaps.push((sorted[i].pub - sorted[i + 1].pub) / 86400000);
+    }
+    upload_freq = Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length * 10) / 10;
+  }
+
   return {
     stability: stab, cv, avg, median: med,
     video_count: viewsList.length, view_label: viewLabel,
-    ratio, video_ids: videoIds, api_notes: apiNotes,
+    ratio, video_ids: videoIds,
+    real_er, comment_rate, upload_freq,
+    api_notes: apiNotes,
   };
 }
 

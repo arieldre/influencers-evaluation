@@ -121,7 +121,7 @@ const DEFAULTS = {
   YELLOW_E_INT: 0.85,
   GREEN_E_DED: 1.45,
   YELLOW_E_DED: 2.20,
-  CATEGORY_AUD_MULT: { gaming: 0.90, non_gaming: 1.00, mobile: 1.10 },
+  CATEGORY_AUD_MULT: { gaming: 0.90, non_gaming: 1.10, mobile: 1.30 },
 };
 
 // ── Helpers ──

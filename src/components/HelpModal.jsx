@@ -85,7 +85,7 @@ export default function HelpModal({ onClose }) {
 {`QS = audience × stability × ER × US_penalty × view_mult × face_mult
 
   audience  = (US×2.0 + (UK+CA+AU)×0.8 + male25+×1.0 + male18-24×0.2) × category_mult
-  category  = gaming×0.90 | non-gaming×1.00 | mobile×1.10
+  category  = gaming×0.90 | non-gaming×1.10 | mobile×1.30
   stability = stable/somewhat×1.0 | dead channel×0.3 | unknown×0.5
   ER        = er>5%→×1.3 | er<3%→×0.9 | else×1.0
   US penalty= US<15%→×0.6 | else×1.0

@@ -5,6 +5,7 @@ import { parseExcel } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
 import { scoreCreators, summarizeResults, DEFAULTS } from './utils/scorer';
 import { detectFacesForAll } from './utils/faceDetect';
+import HelpModal from './components/HelpModal';
 
 const DEFAULT_API_KEY = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
 
@@ -20,6 +21,7 @@ export default function App() {
   const [showConfig, setShowConfig] = useState(false);
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(100);
+  const [showHelp, setShowHelp] = useState(false);
 
   // ── Upload ──
   const handleFile = useCallback((arrayBuffer, fileName) => {
@@ -80,10 +82,24 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1>Influencer Pipeline Evaluator</h1>
-      <p style={{ color: '#888', marginBottom: 24 }}>
-        Upload Zorka Excel → Fetch YT data → Auto-score → Review decisions
-      </p>
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1>Influencer Pipeline Evaluator</h1>
+          <p style={{ color: '#888', marginBottom: 24 }}>
+            Upload Zorka Excel → Fetch YT data → Auto-score → Review decisions
+          </p>
+        </div>
+        <button
+          onClick={() => setShowHelp(true)}
+          title="How everything works"
+          style={{
+            marginTop: 6, background: 'none', border: '1px solid #3a3a3a',
+            color: '#888', borderRadius: '50%', width: 32, height: 32,
+            cursor: 'pointer', fontSize: '1rem', fontWeight: 700, flexShrink: 0,
+          }}
+        >?</button>
+      </div>
 
       {/* UPLOAD */}
       {step === 'upload' && <FileUpload onFileLoaded={handleFile} />}

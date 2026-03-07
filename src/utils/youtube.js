@@ -2,6 +2,7 @@
  * YouTube Data API v3 — matches Colab pipeline exactly.
  * 90-day cutoff, skip Shorts (< 180s), outlier removal, sub mismatch.
  */
+import { analyzeCharisma } from './charisma.js';
 
 const TARGET_VIDEOS = 10;
 const MAX_AGE_DAYS = 90;
@@ -231,6 +232,7 @@ export async function analyzeCreator(apiKey, creator) {
 
     const allVids = await getRecentVideos(apiKey, info.playlist);
     const metrics = analyzeViews(allVids, creator.claimed_views);
+    const charisma = await analyzeCharisma(apiKey, metrics.video_ids || []);
 
     return {
       ...metrics,
@@ -238,6 +240,7 @@ export async function analyzeCreator(apiKey, creator) {
       yt_subs: info.subs,
       method,
       sub_warn,
+      charisma,
       error: '',
     };
   } catch (err) {

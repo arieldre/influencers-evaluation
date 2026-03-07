@@ -208,6 +208,7 @@ export function scoreCreators(creators, config = {}) {
     const apiError = api.error || '';
     const subWarn = api.sub_warn || '';
     const faceData = api.face || { has_face: false, same_face: false, face_label: '—' };
+    const charismaData = api.charisma || null;
 
     const catKey = detectCategoryProfile(category);
     const audMult = CATEGORY_AUD_MULT[catKey] ?? 1.0;
@@ -239,6 +240,7 @@ export function scoreCreators(creators, config = {}) {
         sub_warn: subWarn,
         api_error: apiError,
         face: faceData,
+        charisma: charismaData,
         er,
         geo: c.geo || '',
         ...overrides,

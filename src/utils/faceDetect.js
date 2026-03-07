@@ -1,9 +1,10 @@
 import * as faceapi from 'face-api.js';
 
 const MODEL_URL = '/models';
-const SAME_FACE_THRESHOLD = 0.52;  // euclidean distance — lower = stricter match
-const MIN_SAME_FACE_RATIO = 0.55;  // 55% of thumbnails must match the reference face
-const THUMBNAILS_TO_CHECK = 8;
+const SAME_FACE_THRESHOLD = 0.52;
+const MIN_SAME_FACE_RATIO = 0.55;
+const VIDEOS_TO_CHECK = 5;       // videos per creator
+const SCORE_THRESHOLD = 0.45;
 
 let modelsLoaded = false;
 
@@ -27,17 +28,15 @@ function loadImg(url) {
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('load failed'));
-    // Add cache-bust to avoid opaque responses blocking CORS
-    img.src = url + '?_=' + Date.now();
+    img.src = url;
   });
 }
 
-async function getDescriptor(videoId) {
-  const url = `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+async function getDescriptorFromUrl(url) {
   try {
     const img = await loadImg(url);
     const result = await faceapi
-      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.45 }))
+      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: SCORE_THRESHOLD }))
       .withFaceLandmarks(true)
       .withFaceDescriptor();
     return result ? Array.from(result.descriptor) : null;
@@ -46,17 +45,33 @@ async function getDescriptor(videoId) {
   }
 }
 
+// For each video: check custom thumbnail + 3 actual video frames (25%, 50%, 75%)
+async function getDescriptorsForVideo(videoId) {
+  const urls = [
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, // custom thumbnail
+    `https://i.ytimg.com/vi/${videoId}/1.jpg`,          // frame ~25%
+    `https://i.ytimg.com/vi/${videoId}/2.jpg`,          // frame ~50%
+    `https://i.ytimg.com/vi/${videoId}/3.jpg`,          // frame ~75%
+  ];
+  const descriptors = [];
+  for (const url of urls) {
+    const desc = await getDescriptorFromUrl(url);
+    if (desc) descriptors.push(desc);
+  }
+  return descriptors;
+}
+
 export async function detectFaceConsistency(videoIds) {
   if (!videoIds || videoIds.length === 0) {
     return { has_face: false, same_face: false, face_count: 0, face_label: 'No face' };
   }
 
-  const sample = videoIds.slice(0, THUMBNAILS_TO_CHECK);
+  const sample = videoIds.slice(0, VIDEOS_TO_CHECK);
   const descriptors = [];
 
   for (const id of sample) {
-    const desc = await getDescriptor(id);
-    if (desc) descriptors.push(desc);
+    const descs = await getDescriptorsForVideo(id);
+    descriptors.push(...descs);
   }
 
   if (descriptors.length === 0) {
@@ -67,11 +82,13 @@ export async function detectFaceConsistency(videoIds) {
     return { has_face: true, same_face: true, face_count: 1, face_label: 'Same face' };
   }
 
-  // Use the descriptor closest to the mean as reference (most representative face)
-  const mean = descriptors[0].map((_, i) => descriptors.reduce((s, d) => s + d[i], 0) / descriptors.length);
-  const ref = descriptors.reduce((best, d) => {
-    return euclidean(d, mean) < euclidean(best, mean) ? d : best;
-  }, descriptors[0]);
+  // Reference = descriptor closest to the centroid (most representative face)
+  const mean = descriptors[0].map((_, i) =>
+    descriptors.reduce((s, d) => s + d[i], 0) / descriptors.length
+  );
+  const ref = descriptors.reduce((best, d) =>
+    euclidean(d, mean) < euclidean(best, mean) ? d : best
+  , descriptors[0]);
 
   const matches = descriptors.filter(d => euclidean(d, ref) < SAME_FACE_THRESHOLD);
   const ratio = matches.length / descriptors.length;

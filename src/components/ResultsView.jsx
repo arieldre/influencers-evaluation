@@ -170,6 +170,7 @@ export default function ResultsView({ summary }) {
               <th>Ratio</th>
               <th>Stability</th>
               <th>Face</th>
+              <th>Charisma</th>
               <th>Comment</th>
             </tr>
           </thead>
@@ -215,13 +216,29 @@ export default function ResultsView({ summary }) {
                           : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
                     }
                   </td>
+                  <td>
+                    {r.charisma
+                      ? (() => {
+                          const c = r.charisma;
+                          const color = c.charisma >= 68 ? '#6fcf6f' : c.charisma >= 42 ? '#cfcf6f' : '#cf6f6f';
+                          const bg   = c.charisma >= 68 ? '#1a4d1a' : c.charisma >= 42 ? '#4d4d1a' : '#4d1a1a';
+                          return (
+                            <span title={`Avg length: ${c.avg_length}ch | Excited: ${c.excited_pct}% | Positive: ${c.positive_pct}% | Generic: ${c.generic_pct}% | ${c.comment_count} comments`}
+                              style={{ background: bg, color, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap' }}>
+                              {c.charisma} {c.label}
+                            </span>
+                          );
+                        })()
+                      : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                    }
+                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={19} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={20} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

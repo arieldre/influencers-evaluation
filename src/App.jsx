@@ -4,6 +4,7 @@ import ResultsView from './components/ResultsView';
 import { parseExcel } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
 import { scoreCreators, summarizeResults, DEFAULTS } from './utils/scorer';
+import { detectFacesForAll } from './utils/faceDetect';
 
 const DEFAULT_API_KEY = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
 
@@ -11,7 +12,7 @@ export default function App() {
   const [step, setStep] = useState('upload'); // upload | config | fetching | results
   const [creators, setCreators] = useState([]);
   const [parseInfo, setParseInfo] = useState(null);
-  const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
+  const [progress, setProgress] = useState({ current: 0, total: 0, name: '', phase: 'youtube' });
   const [results, setResults] = useState(null);
   const [summary, setSummary] = useState(null);
   const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
@@ -41,15 +42,20 @@ export default function App() {
     const subset = creators.slice(start, end);
 
     setStep('fetching');
-    setProgress({ current: 0, total: subset.length, name: '' });
+    setProgress({ current: 0, total: subset.length, name: '', phase: 'youtube' });
 
     try {
       const updated = await analyzeAll(apiKey, [...subset], (i, total, name) => {
-        setProgress({ current: i, total, name });
+        setProgress({ current: i, total, name, phase: 'youtube' });
       });
 
-      setCreators(updated);
-      const scored = scoreCreators(updated, config);
+      setProgress({ current: 0, total: updated.length, name: '', phase: 'face' });
+      const withFaces = await detectFacesForAll(updated, (i, total, name) => {
+        setProgress({ current: i, total, name, phase: 'face' });
+      });
+
+      setCreators(withFaces);
+      const scored = scoreCreators(withFaces, config);
       const summ = summarizeResults(scored);
       setResults(scored);
       setSummary(summ);
@@ -183,7 +189,10 @@ export default function App() {
       {step === 'fetching' && (
         <div className="status-bar">
           <p>
-            Fetching YouTube data... <strong>{progress.current}/{progress.total}</strong>
+            {progress.phase === 'face'
+              ? <>Detecting faces... <strong>{progress.current}/{progress.total}</strong></>
+              : <>Fetching YouTube data... <strong>{progress.current}/{progress.total}</strong></>
+            }
             {progress.name && <> — {progress.name}</>}
           </p>
           <div className="progress">

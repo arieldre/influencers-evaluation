@@ -115,6 +115,7 @@ async function getRecentVideos(apiKey, playlistId) {
       const dur = parseDuration(it.contentDetails?.duration);
       const pub = new Date(it.snippet.publishedAt);
       vids.push({
+        id: it.id,
         views: parseInt(it.statistics.viewCount || '0', 10),
         pub,
         is_short: dur > 0 && dur < 180,
@@ -151,11 +152,13 @@ function analyzeViews(allVids, claimedViews) {
     return {
       stability: 'no data', cv: null, avg: 0, median: 0,
       video_count: 0, view_label: '', ratio: null,
+      video_ids: [],
       api_notes: 'no recent videos',
     };
   }
 
   const viewsList = valid.map(v => v.views);
+  const videoIds = valid.map(v => v.id).filter(Boolean);
   const avg = Math.round(arrMean(viewsList));
   const med = arrMedian(viewsList);
 
@@ -163,6 +166,7 @@ function analyzeViews(allVids, claimedViews) {
     return {
       stability: 'dead channel', cv: 0, avg, median: med,
       video_count: viewsList.length, view_label: '', ratio: null,
+      video_ids: videoIds,
       api_notes: `dead channel — avg ${avg.toLocaleString()} views`,
     };
   }
@@ -201,7 +205,7 @@ function analyzeViews(allVids, claimedViews) {
   return {
     stability: stab, cv, avg, median: med,
     video_count: viewsList.length, view_label: viewLabel,
-    ratio, api_notes: apiNotes,
+    ratio, video_ids: videoIds, api_notes: apiNotes,
   };
 }
 

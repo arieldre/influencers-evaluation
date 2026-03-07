@@ -169,6 +169,7 @@ export default function ResultsView({ summary }) {
               <th>Views</th>
               <th>Ratio</th>
               <th>Stability</th>
+              <th>Face</th>
               <th>Comment</th>
             </tr>
           </thead>
@@ -204,13 +205,23 @@ export default function ResultsView({ summary }) {
                   </td>
                   <td className="num">{r.view_ratio != null ? r.view_ratio.toFixed(2) + 'x' : '—'}</td>
                   <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{r.stability || '—'}</td>
+                  <td>
+                    {r.face?.has_face === false
+                      ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face</span>
+                      : r.face?.same_face
+                        ? <span style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Same face</span>
+                        : r.face?.has_face
+                          ? <span style={{ background: '#4d4d1a', color: '#cfcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Mixed</span>
+                          : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                    }
+                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={18} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={19} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

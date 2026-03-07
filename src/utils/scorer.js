@@ -12,32 +12,103 @@ const GAMING_KEYWORDS = [
 ];
 
 const MOBILE_KEYWORDS = [
+  // generic mobile tags
   'mobile game','mobile gaming','ios game','android game','app game',
-  'casual game','hyper casual','gacha','idle game',
-  'clash royale','clash of clans','clash','brawl stars',
+  'casual game','hyper casual','gacha','idle game','mobile esports',
+
+  // Supercell
+  'clash royale','clash of clans','clash','brawl stars','hay day','boom beach',
+  'supercell','squad busters',
+  '\u0441lash royale','\u0441lash of clans', // Cyrillic С variants
+
+  // Devsisters
+  'cookie run','cookie run kingdom','cookie run ovenbreak',
+
+  // miHoYo / HoYoverse
   'genshin impact','genshin','honkai','honkai impact','honkai star rail',
-  'mobile legends','mobile legend',
-  'arena of valor','aov',
-  'free fire','garena',
-  'pubg mobile','pubg lite',
-  'call of duty mobile','cod mobile','codm',
-  'pokemon go','pokemon unite','pokemon master',
-  'candy crush','candy saga',
-  'among us',
-  'rise of kingdoms','rise of empire','lords mobile','war robots',
-  'state of survival','whiteout survival','last shelter',
-  'age of empires mobile','total battle','evony',
-  'hay day','boom beach','supercell',
+  'zenless zone zero','zzz',
+
+  // MOBA & shooters
+  'mobile legends','mobile legend','arena of valor','aov',
+  'free fire','garena','pubg mobile','pubg lite','pubg new state',
+  'call of duty mobile','cod mobile','codm','apex legends mobile',
+  'league of legends wild rift','wild rift','teamfight tactics mobile',
+
+  // battle royale / party
+  'among us','stumble guys','fall guys mobile',
+
+  // RPG & gacha
   'summoners war','raid shadow legends','raid:','afk arena','afk journey',
+  'tower of fantasy','nikke','blue archive','epic seven','arknights',
+  'fate grand order','fgo','azur lane','girls frontline','guardian tales',
+  'genshin','star rail','wuthering waves','solo leveling arise',
+  'seven deadly sins','7ds','dragon ball legends','db legends',
+  'one piece bounty rush','naruto blazing','bleach brave souls',
+  'fire emblem heroes','another eden','octopath traveler mobile',
+  'final fantasy brave exvius','ffbe','war of the visions','dffoo',
+  'tales of luminaria','ni no kuni crossworlds','diablo immortal','diablo mobile',
+  'torchlight infinite','path of exile mobile','undecember',
+
+  // strategy & 4X
+  'rise of kingdoms','rise of empire','lords mobile','war robots',
+  'state of survival','whiteout survival','last shelter','last war survival',
+  'age of empires mobile','total battle','evony','top war','king of avalon',
+  'guns of glory','march of empires','civilization mobile','art of war',
+  'clash of kings','empire and puzzles','call of dragons',
+  'dune spice wars mobile','infinite kingdom','viking rise',
+  'warpath','puzzles and survival','age of origins','west game',
+  'star trek fleet command','galaxy of heroes','swgoh',
+
+  // tower defense & roguelike
+  'rush royale','random dice','kingdom rush','bloons td','plants vs zombies',
+  'pvz','soul knight','archero','survivor.io','vampire survivors mobile',
+  'magic survival','brotato mobile',
+
+  // auto chess / card
   'magic chess','auto chess','tft mobile',
-  'tower of fantasy','nikke','blue archive',
-  'dragon city','monster legends',
-  'subway surfers','temple run',
-  'stumble guys','fall guys mobile',
-  'diablo immortal','diablo mobile',
-  'league of legends wild rift','wild rift',
-  'teamfight tactics mobile',
-  'minecraft','roblox',
+  'hearthstone','legends of runeterra','lor','marvel snap','clash mini',
+  'yu gi oh duel links','yu gi oh master duel','gwent mobile',
+
+  // sports & racing
+  'ea fc mobile','fifa mobile','madden mobile','nba live mobile','nba 2k mobile',
+  'mlb 9 innings','real racing','asphalt 9','asphalt 8','mario kart tour',
+  'csr racing','need for speed no limits',
+  'top eleven','score hero','dream league soccer','dls',
+  'retro bowl','golf clash','tennis clash','badminton clash',
+
+  // sandbox & simulation
+  'minecraft','roblox','terraria mobile','stardew valley mobile',
+  'the sims mobile','simcity buildit','township','family island',
+  'homescapes','gardenscapes','merge mansion','merge dragons',
+  'project makeover','design home','adorable home',
+
+  // runner & arcade
+  'subway surfers','temple run','crossy road','jetpack joyride',
+  'geometry dash','flappy bird','fruit ninja','cut the rope',
+  'angry birds','angry birds 2',
+
+  // puzzle
+  'candy crush','candy saga','royal match','toon blast','toy blast',
+  'puzzle & dragons','pad','match 3','brain out','wordle',
+  'monument valley','the room',
+
+  // pokemon
+  'pokemon go','pokemon unite','pokemon master','pokemon sleep','pokemon cafe',
+  'pokemon tcg pocket','pokemon tcg live',
+
+  // horror & narrative
+  'identity v','dead by daylight mobile','life is strange mobile',
+  'sky children of the light','sky cotl','journey mobile',
+
+  // monster collection
+  'dragon city','monster legends','monster hunter now','palworld mobile',
+  'monster strike','puzzle and dragons',
+
+  // misc popular
+  'coin master','board kings','dice dreams','pirate kings',
+  'clash quest','hay day pop','top drives','car parking multiplayer',
+  'standoff 2','critical ops','modern combat','shadowgun',
+  'world of tanks blitz','wot blitz','world of warships blitz',
 ];
 
 const AUTO_DECLINE_CATS = ['roblox', 'minecraft', 'fortnite'];
@@ -136,6 +207,7 @@ export function scoreCreators(creators, config = {}) {
     const apiRatio = api.ratio ?? null;
     const apiError = api.error || '';
     const subWarn = api.sub_warn || '';
+    const faceData = api.face || { has_face: false, same_face: false, face_label: '—' };
 
     const catKey = detectCategoryProfile(category);
     const audMult = CATEGORY_AUD_MULT[catKey] ?? 1.0;
@@ -166,6 +238,7 @@ export function scoreCreators(creators, config = {}) {
         auto_comment: '',
         sub_warn: subWarn,
         api_error: apiError,
+        face: faceData,
         er,
         geo: c.geo || '',
         ...overrides,
@@ -234,6 +307,10 @@ export function scoreCreators(creators, config = {}) {
     }
 
     qs *= viewMult;
+
+    // Face multiplier (same face OR mixed both count as face creator)
+    if (faceData.has_face) qs *= 1.3;
+
     qs = Math.round(qs * 1000) / 1000;
 
     // E ratio

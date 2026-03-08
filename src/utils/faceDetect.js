@@ -91,13 +91,17 @@ export async function detectFaceConsistency(videoIds) {
   const matches = descriptors.filter(d => euclidean(d, ref) < SAME_FACE_THRESHOLD);
   const ratio = matches.length / descriptors.length;
   const sameFace = ratio >= MIN_SAME_FACE_RATIO;
+  // Mixed High: ratio ≥ 40% — likely a real presenter, just inconsistent thumbnails
+  // Mixed Low:  ratio  < 40% — low confidence, could be game characters / noise
+  const mixedHigh = !sameFace && ratio >= 0.40;
 
   return {
     has_face: true,
     same_face: sameFace,
+    mixed_high: mixedHigh,
     face_count: descriptors.length,
     face_ratio: Math.round(ratio * 100),
-    face_label: sameFace ? 'Same face' : 'Mixed',
+    face_label: sameFace ? 'Same face' : mixedHigh ? 'Mixed (High)' : 'Mixed (Low)',
   };
 }
 

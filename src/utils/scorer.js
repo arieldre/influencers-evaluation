@@ -321,8 +321,18 @@ export function scoreCreators(creators, config = {}) {
 
     qs *= viewMult;
 
-    // Face multiplier (same face OR mixed both count as face creator)
-    if (faceData.has_face) qs *= 1.3;
+    // Face multiplier
+    // Same face = confirmed presenter → ×1.3
+    // Mixed High = likely presenter (ratio ≥ 40%) → ×1.3  
+    // Mixed Low = uncertain → no boost (unless manually overridden to yes)
+    // Manual override takes precedence over ML result
+    const faceConfirmed =
+      faceData.face_override === 'yes' ||
+      (faceData.face_override !== 'no' && (
+        faceData.same_face === true ||
+        faceData.mixed_high === true
+      ));
+    if (faceConfirmed) qs *= 1.3;
 
     qs = Math.round(qs * 1000) / 1000;
 

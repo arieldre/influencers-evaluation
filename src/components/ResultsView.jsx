@@ -60,7 +60,7 @@ function filterBtn(active, activeStyle) {
   };
 }
 
-export default function ResultsView({ summary }) {
+export default function ResultsView({ summary, onFaceOverride }) {
   const { greens, yellows, reds, errors, declines, greenSpend, yellowOffer } = summary;
 
   const allRows = useMemo(
@@ -278,13 +278,25 @@ export default function ResultsView({ summary }) {
                   <td className="num">{r.view_ratio != null ? r.view_ratio.toFixed(2) + 'x' : '—'}</td>
                   <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{r.stability || '—'}</td>
                   <td>
-                    {r.face?.has_face === false
-                      ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face</span>
+                    {r.face?.face_override === 'yes'
+                      ? <span style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Same face ✓</span>
+                      : r.face?.face_override === 'no'
+                        ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face ✗</span>
                       : r.face?.same_face
-                        ? <span style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Same face</span>
-                        : r.face?.has_face
-                          ? <span style={{ background: '#4d4d1a', color: '#cfcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Mixed</span>
-                          : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                        ? <span title={`${r.face.face_ratio}% match`} style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>Same face</span>
+                      : r.face?.mixed_high
+                        ? <span title={`${r.face.face_ratio}% face match — auto ×1.3 applied`} style={{ background: '#1a3a1a', color: '#90cf70', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>Mixed (High ✓)</span>
+                      : r.face?.has_face
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            <span title={`${r.face.face_ratio ?? 0}% face match — low confidence`} style={{ background: '#3a2a0a', color: '#cfaa40', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>Mixed (Low)</span>
+                            {onFaceOverride && <>
+                              <button onClick={() => onFaceOverride(r.link, 'yes')} style={{ background: '#1a4d1a', color: '#6fcf6f', border: '1px solid #2a6a2a', borderRadius: 3, padding: '1px 7px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Yes</button>
+                              <button onClick={() => onFaceOverride(r.link, 'no')} style={{ background: '#4d1a1a', color: '#cf6f6f', border: '1px solid #6a2a2a', borderRadius: 3, padding: '1px 7px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>No</button>
+                            </>}
+                          </span>
+                      : r.face?.has_face === false
+                        ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face</span>
+                        : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
                     }
                   </td>
                   <td>

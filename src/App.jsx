@@ -124,6 +124,28 @@ export default function App() {
     setSummary(summ);
   }, [creators, config]);
 
+  // ── Manual face override ──
+  const onFaceOverride = useCallback((link, answer) => {
+    // answer: 'yes' | 'no'
+    setCreators(prev => {
+      const updated = prev.map(c => {
+        if (c.link !== link) return c;
+        return {
+          ...c,
+          api: {
+            ...c.api,
+            face: { ...(c.api?.face || {}), face_override: answer },
+          },
+        };
+      });
+      const scored = scoreCreators(updated, config);
+      const summ = summarizeResults(scored);
+      setResults(scored);
+      setSummary(summ);
+      return updated;
+    });
+  }, [config]);
+
   return (
     <div className="app">
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
@@ -337,7 +359,7 @@ export default function App() {
             </div>
           )}
 
-          <ResultsView summary={summary} />
+          <ResultsView summary={summary} onFaceOverride={onFaceOverride} />
         </>
       )}
     </div>

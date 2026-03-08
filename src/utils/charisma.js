@@ -1,7 +1,15 @@
 /**
  * Charisma scorer — uses video statistics we already fetch (zero extra API calls).
- * Builds a proxy score from like rate, comment rate, like/comment ratio,
- * comment consistency, and title engagement signals.
+ *
+ * Signals and weights:
+ *   Comment rate  45% — best proxy for genuine audience connection (people who write care)
+ *   Like rate     30% — resonance; how much content moves the audience to act
+ *   Like/comment  15% — discussion depth (low ratio = real conversation, not passive likes)
+ *   Comment CV    10% — consistency; reliable engagement vs viral-spike-only
+ *
+ * Title signals removed — they reward clickbait and penalize calm personal channels.
+ * Face-on-camera is measured separately via ML face detection (faceDetect.js)
+ * and already contributes a ×1.3 QS multiplier there.
  */
 
 function arrMean(arr) { return arr.reduce((s, v) => s + v, 0) / arr.length; }
@@ -12,8 +20,8 @@ function arrStdev(arr) {
 }
 
 /**
- * @param {Array} videos — the same video objects from getRecentVideos()
- *   each has: { views, likes, comments, title }
+ * @param {*}      _apiKeyUnused — kept for API compatibility, not used
+ * @param {Array}  videos        — video objects from getRecentVideos(): { views, likes, comments }
  */
 export function analyzeCharisma(_apiKeyUnused, videos) {
   if (!videos || videos.length < 2) return null;
@@ -24,54 +32,50 @@ export function analyzeCharisma(_apiKeyUnused, videos) {
   const n = withViews.length;
 
   // ── Per-video rates ──
-  const likeRates   = withViews.map(v => v.likes / v.views);
+  const likeRates    = withViews.map(v => v.likes / v.views);
   const commentRates = withViews.map(v => v.comments / v.views);
 
   const avgLikeRate    = arrMean(likeRates);
   const avgCommentRate = arrMean(commentRates);
 
-  // Like-to-comment ratio — lower = audience writes more, not just likes
+  // Like-to-comment ratio — lower = audience writes, not just clicks like
   const likeToComment = withViews.map(v => v.comments > 0 ? v.likes / v.comments : 999);
-  const avgLtc = arrMean(likeToComment.filter(v => v < 999));
+  const validLtc = likeToComment.filter(v => v < 999);
+  const avgLtc = validLtc.length > 0 ? arrMean(validLtc) : 999;
 
-  // Comment consistency — low CV = audience reliably engages
+  // Comment consistency — low CV = audience reliably shows up, not just for viral videos
   const commentCounts = withViews.map(v => v.comments);
-  const commentCv = arrMean(commentCounts) > 0
-    ? arrStdev(commentCounts) / arrMean(commentCounts)
+  const commentMean = arrMean(commentCounts);
+  const commentCv = commentMean > 0
+    ? arrStdev(commentCounts) / commentMean
     : 2.0;
 
-  // Title engagement — exclamation marks, caps, questions
-  const titles = withViews.map(v => v.title || '');
-  const titleExcitement = titles.filter(t => /!/.test(t) || /[A-Z]{3,}/.test(t)).length / n;
-  const titleQuestions  = titles.filter(t => t.includes('?')).length / n;
-
-  // ── Weighted score (0–1 before scaling) ──
-  // Like rate: gaming avg ~4%, great >7%. Normalize to 0–1 at 10%.
-  const likeScore    = Math.min(avgLikeRate / 0.10, 1.0);
-  // Comment rate: avg ~0.2%, great >0.5%. Normalize at 1%.
+  // ── Normalize each signal to 0–1 ──
+  // Comment rate: avg gaming ~0.2%, great >0.5%, normalize ceiling at 1%
   const commentScore = Math.min(avgCommentRate / 0.01, 1.0);
-  // Like-to-comment: <20 = amazing discussion, >100 = passive. Invert.
-  const ltcScore     = avgLtc > 0 ? Math.min(20 / Math.max(avgLtc, 1), 1.0) : 0;
-  // Comment consistency: CV <0.5 = very consistent, >1.5 = random
+  // Like rate: avg gaming ~4%, great >7%, normalize ceiling at 10%
+  const likeScore    = Math.min(avgLikeRate / 0.10, 1.0);
+  // Like-to-comment: <20 = deep discussion, >100 = passive audience. Invert.
+  const ltcScore     = avgLtc < 999 ? Math.min(20 / Math.max(avgLtc, 1), 1.0) : 0;
+  // Comment CV: <0.5 = very consistent, >1.5 = erratic. Invert.
   const consistScore = Math.max(0, 1.0 - commentCv / 1.5);
 
+  // ── Weighted sum ──
   const raw =
-    likeScore    * 0.25 +
-    commentScore * 0.30 +
-    ltcScore     * 0.20 +
-    consistScore * 0.10 +
-    titleExcitement * 0.10 +
-    titleQuestions  * 0.05;
+    commentScore * 0.45 +
+    likeScore    * 0.30 +
+    ltcScore     * 0.15 +
+    consistScore * 0.10;
 
   const charisma = Math.max(0, Math.min(100, Math.round(raw * 100)));
 
   return {
     charisma,
-    like_rate_pct: Math.round(avgLikeRate * 10000) / 100,
+    like_rate_pct:    Math.round(avgLikeRate * 10000) / 100,
     comment_rate_pct: Math.round(avgCommentRate * 10000) / 100,
-    like_to_comment: Math.round(avgLtc * 10) / 10,
-    comment_cv: Math.round(commentCv * 100) / 100,
-    comment_count: n,
+    like_to_comment:  Math.round(avgLtc < 999 ? avgLtc * 10 / 10 : 999),
+    comment_cv:       Math.round(commentCv * 100) / 100,
+    comment_count:    n,
     label: charisma >= 68 ? 'High' : charisma >= 42 ? 'Medium' : 'Low',
   };
 }

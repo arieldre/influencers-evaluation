@@ -58,48 +58,87 @@ export default function HelpModal({ onClose }) {
 
         <div style={S.h1}>Influencer Pipeline Evaluator — Full Reference</div>
         <p style={{ ...S.p, marginTop: 6 }}>
-          Everything this tool calculates, how it's scored, and how to interpret results.
+          A full automated evaluation pipeline: upload your Excel file, fetch live YouTube data, run ML face detection, score every creator, and export decisions — all in the browser.
         </p>
 
         {/* ── Pipeline ── */}
         <div style={S.h2}>How the Pipeline Works</div>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>1. Upload</strong> — Drop a Zorka Excel file. The tool auto-detects the correct sheet and start row by looking for YouTube links.
+          <strong style={{ color: '#eee' }}>1. Upload</strong> — Drop a <strong>Zorka</strong> or <strong>JMG</strong> Excel file. The tool auto-detects the format, finds the correct sheet, and maps each row to a creator (YouTube link, name, claimed views, price, demographics, format type).
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>2. Range</strong> — Choose which creators to process (e.g. rows 1–50). Useful for batching large lists across quota limits.
+          <strong style={{ color: '#eee' }}>2. Range</strong> — Choose which rows to process (e.g. rows 1–50). Useful for splitting large lists into batches when working near the YouTube API quota limit (10,000 units/day).
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>3. YouTube Fetch</strong> — For each creator: resolves the channel ID, fetches the last 50 uploads, filters out Shorts (&lt;180s) and videos older than 90 days, then analyzes up to 10 videos. Also fetches up to 100 comments from 2 recent videos for the charisma score.
+          <strong style={{ color: '#eee' }}>3. YouTube Fetch</strong> — For each creator the tool: resolves their Channel ID from the URL, fetches the channel's subscriber count, then fetches the last 50 uploads filtered to only the past 90 days and excluding Shorts (&lt;180s). From those, it picks the 10 most-viewed videos and computes: average views, engagement rate (likes÷views), comment rate (comments÷views), upload frequency, stability (coefficient of variation), view trend, and content signals (sponsored detection, live streams, collabs). All video data is cached to avoid re-fetching on re-score.
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>4. Face Detection</strong> — For each creator, loads up to 5 videos × 4 images each (custom thumbnail + 3 auto-generated video frames at 25%/50%/75%). Extracts 128-dimensional face descriptors and compares them for consistency.
+          <strong style={{ color: '#eee' }}>4. Face Detection (ML)</strong> — For each creator, up to 5 recent videos are sampled. For each video, 4 images are loaded: the custom thumbnail + 3 auto-generated frames at 25%, 50%, and 75% of video duration. Each image is run through a TinyFaceDetector neural network (face-api.js, runs fully in-browser) to extract a 128-dimensional face descriptor vector. Descriptors are compared to detect whether the <em>same person</em> consistently appears on camera. This is the strongest signal for personal charisma — creators who show their face get a ×1.3 QS boost. No API calls required — the ML models load once from the <code>/models/</code> folder.
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>5. Creative Score</strong> — If an OpenAI API key is provided, sends each creator's last 10 video titles to GPT-4o mini. Asks whether the content has a genuinely unique creative concept. Returns a score 1–10 and a one-sentence explanation. Optional — leave the key blank to skip.
+          <strong style={{ color: '#eee' }}>5. Charisma Score</strong> — Computed from the video stats already fetched in step 3 (zero extra API calls). Measures how actively the audience engages, not just passively watches. See the Charisma column reference below.
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>6. Scoring</strong> — Computes QS and E ratio, assigns GREEN / YELLOW / RED. YELLOW creators get an auto-calculated counter-offer price.
+          <strong style={{ color: '#eee' }}>6. Creative Score (optional)</strong> — If an OpenAI API key is entered, the last 10 video titles are sent to GPT-4o mini, which rates originality 1–10 and returns a one-sentence reason. Informational only — does not affect QS. Leave blank to skip.
+        </p>
+        <p style={S.p}>
+          <strong style={{ color: '#eee' }}>7. Scoring</strong> — Each creator gets a Quality Score (QS) and an Efficiency ratio (E). E drives the decision: GREEN (good deal), YELLOW (negotiate), RED (too expensive / low quality). YELLOW creators get an auto-calculated counter-offer price to bring E into GREEN range.
         </p>
 
         {/* ── Scoring Formula ── */}
-        <div style={S.h2}>Scoring Formula</div>
+        <div style={S.h2}>Quality Score (QS) Formula</div>
         <div style={S.formula}>
-{`QS = audience × stability × ER × US_penalty × view_mult × face_mult
+{`QS = audience × stability × ER_mult × US_penalty × view_mult × face_mult
 
-  audience  = (US×2.0 + (UK+CA+AU)×0.8 + male25+×1.0 + male18-24×0.2) × category_mult
-  category  = gaming×0.90 | non-gaming×1.10 | mobile×1.30
-  stability = stable/somewhat×1.0 | dead channel×0.3 | unknown×0.5
-  ER        = er>5%→×1.3 | er<3%→×0.9 | else×1.0
-  US penalty= US<15%→×0.6 | else×1.0
-  view_mult = actual/claimed ≥1.5→×1.5 | ≥1.25→×1.25 | ≤0.5→×0.5 | ≤0.75→×0.8
-  face_mult = has face (same or mixed)→×1.3 | no face→×1.0
+  audience   = (US%×2.0 + (UK+CA+AU)%×0.8 + male25+%×1.0 + male18-24%×0.2) × category_mult
 
-E = zorka_cpm / (benchmark_cpm × QS)
-  benchmark = $27.13 (integration) | $96.67 (dedicated)`}
+  category_mult:
+    mobile game keywords → ×1.30  (highest-value audience)
+    gaming keywords      → ×0.90  (lower CPM niche)
+    everything else      → ×1.10
+
+  stability_mult:
+    stable (CV ≤ 0.70)         → ×1.0
+    somewhat stable (CV ≤ 1.0) → ×1.0
+    not stable                 → ×1.0  (already reflected in ER)
+    dead channel (avg < 5,000) → ×0.3
+    unknown (no data)          → ×0.5
+
+  ER_mult (real engagement rate from API):
+    ER > 5%  → ×1.3  (highly engaged audience)
+    ER < 3%  → ×0.9  (below-average engagement)
+    else     → ×1.0
+
+  US_penalty:
+    US audience < 15% → ×0.6  (poor geographic fit)
+    else              → ×1.0
+
+  view_mult (actual avg ÷ claimed views):
+    ≥ 1.50× → ×1.50  (underpriced — real views beat the claim)
+    ≥ 1.25× → ×1.25
+    ≤ 0.50× → ×0.50  (major inflation — real views far below claim)
+    ≤ 0.75× → ×0.80
+    else    → ×1.0
+
+  face_mult (ML detection across up to 20 thumbnail/frame images):
+    Same face or Mixed → ×1.3  (personal presence detected)
+    No face             → ×1.0`}
+        </div>
+        <div style={S.formula}>
+{`E = zorka_cpm / (benchmark_cpm × QS)
+
+  zorka_cpm   = asking_price / claimed_views × 1000
+  benchmark   = $27.13 (integration) | $96.67 (dedicated)
+
+  Lower E = better deal.
+  E ≤ green_threshold  → GREEN  (approve at asking price)
+  E ≤ yellow_threshold → YELLOW (negotiate — auto offer calculated)
+  E > yellow_threshold → RED    (too expensive)
+
+  offer_price = benchmark_cpm × QS × green_threshold / 1000 × claimed_views`}
         </div>
         <div style={S.note}>
-          Lower E = better deal. E≤green threshold → GREEN. E≤yellow threshold → YELLOW. Otherwise RED.
+          The offer price is what you'd need to pay to hit exactly E = green threshold. It's the max you should spend to call this creator a good deal.
         </div>
 
         {/* ── Decisions ── */}
@@ -154,23 +193,31 @@ E = zorka_cpm / (benchmark_cpm × QS)
               stable (CV≤0.70) | somewhat stable (CV≤1.00) | not stable | dead channel (avg&lt;5,000 views).
             </Row>
             <Row label="Face">
-              Result of ML face detection across up to 20 thumbnail/frame images:<br/>
-              <strong>Same face</strong> — consistent presenter detected (×1.3 QS boost).<br/>
-              <strong>Mixed</strong> — faces found but different people (×1.3 QS boost).<br/>
-              <strong>No face</strong> — no human faces in thumbnails/frames (no boost).
+              ML face detection result. For each creator, up to 5 videos are sampled and 4 images per video are loaded (custom thumbnail + auto frames at 25%/50%/75%). Each image is processed by a TinyFaceDetector neural network (runs in-browser, no API calls). A 128-dim descriptor vector is extracted and compared across images.<br/><br/>
+              <strong>Same face</strong> — the same person consistently appears. Strong personal brand signal. <strong>Applies ×1.3 QS multiplier.</strong><br/>
+              <strong>Mixed</strong> — faces found across thumbnails but they differ (team channel, or no fixed host). Still shows human presence. <strong>Applies ×1.3 QS multiplier.</strong><br/>
+              <strong>No face</strong> — no human faces detected. Gameplay-only, animated, or stock footage channels. No boost.<br/><br/>
+              For JMG format, the face flag is pre-filled from the spreadsheet and marked "Yes (JMG)" instead of running ML.
             </Row>
             <Row label="Charisma">
-              0–100 score from analyzing top 100 comments across 2 recent videos.<br/>
-              Weighted: comment length (28%), excitement/caps/! (22%), specificity &gt;40 chars (20%), positive words (15%), questions (10%), emoji (5%), minus generic filler penalty (18%).<br/>
-              Hover the badge for the full breakdown. Informational only — does not affect QS.
+              0–100 score computed from video engagement statistics already fetched in the YouTube step (zero extra API calls). Measures how actively the audience participates, not just how many people watch.<br/><br/>
+              <strong>Weights:</strong><br/>
+              • Comment rate (comments÷views) — <strong>45%</strong>. The strongest signal. People who write actually care about the creator.<br/>
+              • Like rate (likes÷views) — <strong>30%</strong>. Measures resonance — how much content moves the audience to react.<br/>
+              • Like-to-comment ratio — <strong>15%</strong>. Low ratio (e.g. 20:1) means real conversation; high ratio (e.g. 500:1) means passive clicks.<br/>
+              • Comment consistency (CV) — <strong>10%</strong>. Low variance = the audience reliably shows up, not just for viral spikes.<br/><br/>
+              <strong>High ≥ 68 | Medium ≥ 42 | Low &lt; 42</strong><br/>
+              Hover the badge to see like rate %, comment rate %, like/comment ratio, and consistency CV. Informational only — does not affect QS.
             </Row>
             <Row label="Real ER">Actual engagement rate from API: avg(likes ÷ views) across last 10 videos. Compare to Zorka's claimed ER to spot inflation.</Row>
             <Row label="Cmnt Rate">avg(comments ÷ views) — measures how much the audience is motivated to write, not just watch.</Row>
             <Row label="Upload/days">Average days between uploads. Lower = more consistent. e.g. 7d = weekly cadence.</Row>
             <Row label="Creative">
-              GPT-4o mini originality score 1–10 based on the creator's last 10 video titles.<br/>
-              <strong>7–10</strong> = genuinely unique concept. <strong>4–6</strong> = somewhat distinctive. <strong>1–3</strong> = generic content.<br/>
-              Hover the badge to read the one-sentence reason. Only available when an OpenAI key is configured. Informational only — does not affect QS.
+              GPT-4o mini originality score (1–10) based on the creator's last 10 video titles. The model is asked to evaluate whether the content has a genuinely unique creative angle, vs. just following trends or copying popular formats.<br/><br/>
+              <strong>7–10</strong> = genuinely unique concept or creative format.<br/>
+              <strong>4–6</strong> = somewhat distinctive — some original elements but follows established patterns.<br/>
+              <strong>1–3</strong> = generic content — indistinguishable from hundreds of similar channels.<br/><br/>
+              Hover the badge to read the one-sentence reason GPT gave. Only available when an OpenAI API key is configured. Informational only — does not affect QS or decisions.
             </Row>
             <Row label="Comment">Auto-generated notes: stability label, category profile, view label source, sub mismatch warnings.</Row>
           </tbody>
@@ -180,14 +227,17 @@ E = zorka_cpm / (benchmark_cpm × QS)
         <div style={S.h2}>Default Thresholds (adjustable in config)</div>
         <table style={S.table}>
           <tbody>
-            <Row label="AVG CPM Int">$27.13 — market benchmark CPM for integration format.</Row>
-            <Row label="AVG CPM Ded">$96.67 — market benchmark CPM for dedicated format.</Row>
-            <Row label="Green E (Int)">0.55 — E must be ≤0.55 for integration to be GREEN.</Row>
-            <Row label="Yellow E (Int)">0.85 — E must be ≤0.85 for integration to be YELLOW.</Row>
-            <Row label="Green E (Ded)">1.45 — E must be ≤1.45 for dedicated to be GREEN.</Row>
-            <Row label="Yellow E (Ded)">2.20 — E must be ≤2.20 for dedicated to be YELLOW.</Row>
+            <Row label="AVG CPM Int">$27.13 — market benchmark CPM for integration format. Derived from historical campaign data.</Row>
+            <Row label="AVG CPM Ded">$96.67 — market benchmark CPM for dedicated format. ~3.6× higher than integration, reflecting the full-video premium.</Row>
+            <Row label="Green E (Int)">0.55 — E must be ≤0.55 for integration to be GREEN. Below this, the creator is priced well relative to their audience quality.</Row>
+            <Row label="Yellow E (Int)">0.85 — E must be ≤0.85 for integration to be YELLOW. Between 0.55–0.85 = negotiate to the offer price.</Row>
+            <Row label="Green E (Ded)">0.55 — same threshold as integration. Dedicated channels are evaluated against the dedicated CPM benchmark.</Row>
+            <Row label="Yellow E (Ded)">0.85 — same threshold as integration for dedicated format.</Row>
           </tbody>
         </table>
+        <div style={S.note}>
+          All thresholds can be edited live in the Config panel before running, or inline in the results table after running. Changes to thresholds re-score immediately without re-fetching YouTube data.
+        </div>
 
         {/* ── Filters ── */}
         <div style={S.h2}>Filters & Sorting</div>

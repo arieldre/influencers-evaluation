@@ -116,17 +116,20 @@ async function getRecentVideos(apiKey, playlistId) {
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${batch.join(',')}&key=${apiKey}`
     );
     for (const it of (vData.items || [])) {
+      if (!it.statistics) continue; // skip unlisted/deleted/private
       const dur = parseDuration(it.contentDetails?.duration);
       const pub = new Date(it.snippet.publishedAt);
+      const views = parseInt(it.statistics.viewCount || '0', 10);
+      if (views === 0) continue; // skip videos with hidden/disabled view counts
       vids.push({
         id: it.id,
-        views: parseInt(it.statistics.viewCount || '0', 10),
+        views,
         likes: parseInt(it.statistics.likeCount || '0', 10),
         comments: parseInt(it.statistics.commentCount || '0', 10),
         title: it.snippet.title || '',
         desc: (it.snippet.description || '').slice(0, 400),
         pub,
-        is_short: dur > 0 && dur < 180,
+        is_short: dur > 0 && dur < 62, // YouTube Shorts are ≤60s; use 62s as safe cutoff
       });
     }
   }

@@ -1,10 +1,11 @@
 import * as faceapi from 'face-api.js';
 
 const MODEL_URL = '/models';
-const SAME_FACE_THRESHOLD = 0.52;
-const MIN_SAME_FACE_RATIO = 0.55;
-const VIDEOS_TO_CHECK = 5;       // videos per creator
-const SCORE_THRESHOLD = 0.45;
+const SAME_FACE_THRESHOLD  = 0.44;  // stricter: face-api recommends 0.4–0.45 for same person
+const MIN_SAME_FACE_RATIO  = 0.60;  // 60% of detections must match the reference face
+const VIDEOS_TO_CHECK      = 5;     // videos per creator
+const SCORE_THRESHOLD      = 0.65;  // high confidence only — filters out cartoon/game/logo false positives
+const MIN_FACE_COUNT       = 3;     // need at least 3 real detections to flag has_face=true
 
 let modelsLoaded = false;
 
@@ -73,8 +74,10 @@ export async function detectFaceConsistency(videoIds) {
     return { has_face: false, same_face: false, face_count: 0, face_label: 'No face' };
   }
 
-  if (descriptors.length === 1) {
-    return { has_face: true, same_face: true, face_count: 1, face_label: 'Same face' };
+  // Require a minimum number of confident detections before flagging has_face=true.
+  // Filters out single false positives from game characters, logos, or thumbnails.
+  if (descriptors.length < MIN_FACE_COUNT) {
+    return { has_face: false, same_face: false, face_count: descriptors.length, face_label: 'No face' };
   }
 
   // Reference = descriptor closest to the centroid (most representative face)

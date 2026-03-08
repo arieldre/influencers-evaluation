@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import FileUpload from './components/FileUpload';
 import ResultsView from './components/ResultsView';
-import { parseExcel, parseApprovedSheet } from './utils/parseExcel';
+import { parseExcel, parseApprovedSheet, parseZorkaRows, parseApprovedRows } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
 import { scoreCreators, summarizeResults, DEFAULTS, detectCategoryProfile } from './utils/scorer';
+import { extractSpreadsheetId, fetchLonglistSheet, fetchApprovedSheet, normalizeLink } from './utils/googleSheets';
 import { detectFacesForAll } from './utils/faceDetect';
 import { analyzeCreativeAll } from './utils/creative';
 import HelpModal from './components/HelpModal';
@@ -173,7 +174,23 @@ export default function App() {
   const [appTab, setAppTab] = useState('all');
   const [approvedFromFile, setApprovedFromFile] = useState(null);
 
+  // ── Google Sheets sync state ──
+  const [gsUrl, setGsUrl] = useState(() => localStorage.getItem('gs_url') || '');
+  const [gsApiKey, setGsApiKey] = useState(() => localStorage.getItem('gs_api_key') || '');
+  const [syncStatus, setSyncStatus] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const pollRef = useRef(null);
+  const resultsRef = useRef(null);
+  const creatorsRef = useRef([]);
+  const configRef = useRef(config);
+  const apiKeyRef = useRef(apiKey);
+  const parseInfoRef = useRef(null);
+
+  useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
+
   const STORAGE_KEY = 'influencer_pipeline_session';
+  const GS_LINKS_KEY = 'gs_processed_links';
 
   // ── Load saved session on mount ──
   useEffect(() => {
@@ -196,6 +213,91 @@ export default function App() {
     localStorage.removeItem(STORAGE_KEY);
     setSavedSession(null);
   };
+
+  // ── Google Sheets: keep refs current ──
+  useEffect(() => { creatorsRef.current = creators; }, [creators]);
+  useEffect(() => { resultsRef.current = results; }, [results]);
+  useEffect(() => { parseInfoRef.current = parseInfo; }, [parseInfo]);
+
+  // ── Google Sheets: persist URL + key ──
+  useEffect(() => { localStorage.setItem('gs_url', gsUrl); }, [gsUrl]);
+  useEffect(() => { localStorage.setItem('gs_api_key', gsApiKey); }, [gsApiKey]);
+
+  // ── Google Sheets: poll function ──
+  const runSync = useCallback(async () => {
+    if (!gsUrl || !gsApiKey || syncing) return;
+    setSyncing(true);
+    setSyncStatus('Checking sheet for new creators…');
+    try {
+      const id = extractSpreadsheetId(gsUrl);
+
+      // Fetch & parse Longlist
+      const { rows, format } = await fetchLonglistSheet(id, gsApiKey);
+      const allCreators = parseZorkaRows(rows); // Zorka format (JMG support can be added later)
+
+      // Delta: find creators not yet processed
+      const stored = JSON.parse(localStorage.getItem(GS_LINKS_KEY) || '[]');
+      const processedSet = new Set(stored.map(normalizeLink));
+      const newCreators = allCreators.filter(c => !processedSet.has(normalizeLink(c.link)));
+
+      if (newCreators.length === 0) {
+        setSyncStatus(`Up to date — ${new Date().toLocaleTimeString()}`);
+        setSyncing(false);
+        // Still refresh Approved tab
+        const approvedRows = await fetchApprovedSheet(id, gsApiKey);
+        if (approvedRows) setApprovedFromFile(parseApprovedRows(approvedRows));
+        return;
+      }
+
+      setSyncStatus(`Found ${newCreators.length} new creator${newCreators.length !== 1 ? 's' : ''} — fetching YouTube data…`);
+
+      // Run pipeline on new creators only
+      const withApi = await analyzeAll(apiKeyRef.current, newCreators, null);
+      const scored = scoreCreators(withApi, configRef.current);
+
+      // Merge with existing results (new ones first)
+      const existingResults = resultsRef.current || [];
+      const merged = [...scored, ...existingResults];
+      const mergedCreators = [...newCreators, ...creatorsRef.current];
+      const summ = summarizeResults(merged);
+
+      setResults(merged);
+      setSummary(summ);
+      setCreators(mergedCreators);
+      if (!parseInfoRef.current) setParseInfo({ sheetName: 'Google Sheets', format, count: mergedCreators.length });
+      setStep('results');
+
+      // Persist new processed links
+      const updatedLinks = [...stored, ...newCreators.map(c => normalizeLink(c.link))];
+      localStorage.setItem(GS_LINKS_KEY, JSON.stringify(updatedLinks));
+
+      // Save merged session
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        results: merged, summary: summ, creators: mergedCreators,
+        parseInfo: parseInfoRef.current, config: configRef.current, savedAt: Date.now(),
+      }));
+
+      // Refresh Approved tab
+      const approvedRows = await fetchApprovedSheet(id, gsApiKey);
+      if (approvedRows) setApprovedFromFile(parseApprovedRows(approvedRows));
+
+      setSyncStatus(`Synced ${newCreators.length} new creator${newCreators.length !== 1 ? 's' : ''} — ${new Date().toLocaleTimeString()}`);
+    } catch (err) {
+      setSyncStatus(`Error: ${err.message}`);
+    }
+    setSyncing(false);
+  }, [gsUrl, gsApiKey, syncing]);
+
+  // ── Google Sheets: auto-poll every 5 min when URL is set ──
+  useEffect(() => {
+    pollRef.current = runSync;
+  }, [runSync]);
+
+  useEffect(() => {
+    if (!gsUrl || !gsApiKey) return;
+    const id = setInterval(() => pollRef.current?.(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [gsUrl, gsApiKey]);
 
   // ── Upload ──
   const handleFile = useCallback((arrayBuffer, fileName) => {
@@ -353,6 +455,50 @@ export default function App() {
             </div>
           )}
           <FileUpload onFileLoaded={handleFile} />
+
+          {/* ── Google Sheets Sync panel ── */}
+          <div style={{ marginTop: 24, background: '#0d1a2a', border: '1px solid #1a3a5a', borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ color: '#4a9eff', fontWeight: 700, fontSize: '0.88rem', marginBottom: 12 }}>
+              🔗 Google Sheets Auto-Sync
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '2 1 280px' }}>
+                <span style={{ color: '#666', fontSize: '0.75rem' }}>Google Sheets URL</span>
+                <input
+                  value={gsUrl}
+                  onChange={e => setGsUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  style={{ background: '#111', border: '1px solid #2a4a6a', borderRadius: 4, padding: '6px 10px', color: '#ccc', fontSize: '0.82rem' }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 180px' }}>
+                <span style={{ color: '#666', fontSize: '0.75rem' }}>Sheets API Key</span>
+                <input
+                  value={gsApiKey}
+                  onChange={e => setGsApiKey(e.target.value)}
+                  placeholder="AIza..."
+                  type="password"
+                  style={{ background: '#111', border: '1px solid #2a4a6a', borderRadius: 4, padding: '6px 10px', color: '#ccc', fontSize: '0.82rem' }}
+                />
+              </label>
+              <button
+                onClick={runSync}
+                disabled={!gsUrl || !gsApiKey || syncing}
+                style={{ padding: '7px 16px', borderRadius: 4, border: '1px solid #2a6aaa', background: syncing ? '#0d1f3a' : '#1a3a5a', color: syncing ? '#555' : '#4a9eff', cursor: (!gsUrl || !gsApiKey || syncing) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+              >
+                {syncing ? 'Syncing…' : 'Sync Now'}
+              </button>
+            </div>
+            {syncStatus && (
+              <div style={{ marginTop: 10, color: syncStatus.startsWith('Error') ? '#cf6f6f' : '#4a9eff', fontSize: '0.78rem' }}>
+                {syncStatus}
+              </div>
+            )}
+            <div style={{ marginTop: 8, color: '#444', fontSize: '0.72rem' }}>
+              Auto-checks every 5 min when URL is set. New creators are fetched and scored automatically.
+              Sheet must be shared as "Anyone with link can view".
+            </div>
+          </div>
         </>
       )}
 
@@ -496,6 +642,16 @@ export default function App() {
             {summary.declines.length > 0 && <div className="badge decline">{summary.declines.length} AUTO-DECLINE</div>}
             {summary.errors.length > 0 && <div className="badge error">{summary.errors.length} ERROR</div>}
           </div>
+
+          {gsUrl && gsApiKey && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, background: '#0d1a2a', border: '1px solid #1a3a5a', borderRadius: 6, padding: '8px 14px' }}>
+              <span style={{ color: '#4a9eff', fontSize: '0.78rem', fontWeight: 600 }}>🔗 Sheets sync</span>
+              <span style={{ color: syncStatus.startsWith('Error') ? '#cf6f6f' : '#666', fontSize: '0.75rem' }}>{syncStatus || 'idle'}</span>
+              <button onClick={runSync} disabled={syncing} style={{ marginLeft: 'auto', padding: '3px 12px', borderRadius: 4, border: '1px solid #2a6aaa', background: 'transparent', color: '#4a9eff', cursor: syncing ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+                {syncing ? 'Syncing…' : 'Sync Now'}
+              </button>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             <button className="btn btn-secondary" onClick={() => { setStep('upload'); setCreators([]); setResults(null); setSummary(null); }}>

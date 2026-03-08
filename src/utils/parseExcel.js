@@ -254,6 +254,38 @@ function parseZorka(raw, sheetName) {
   return { creators, sheetName, startRow, totalRows: raw.length, format: 'zorka' };
 }
 
+// ── Raw-row exports for Google Sheets integration ──
+
+export function parseZorkaRows(raw) {
+  return parseZorka(raw, 'sheet').creators;
+}
+
+export function parseApprovedRows(raw) {
+  let startRow = 0;
+  for (let r = 0; r < raw.length; r++) {
+    if (/youtube\.com|youtu\.be/i.test(String(raw[r]?.[1] || ''))) { startRow = r; break; }
+  }
+  const creators = [];
+  for (let r = startRow; r < raw.length; r++) {
+    const row = raw[r];
+    const name = String(row[0] || '').trim();
+    const link = String(row[1] || '').trim();
+    if (!name || !link || !/youtube|youtu\.be/i.test(link)) continue;
+    creators.push({
+      name, link,
+      release_date: String(row[2] || ''), status: String(row[3] || ''),
+      scripts: String(row[4] || ''), release_link: String(row[5] || ''),
+      category: String(row[6] || ''), followers: num(row[7]),
+      er: num(row[8]), format: String(row[9] || ''), geo: String(row[10] || ''),
+      m1317: num(row[11]), m1824: num(row[12]), m2534: num(row[13]), m3544: num(row[14]), m45: num(row[15]),
+      f1317: num(row[16]), f1824: num(row[17]), f2534: num(row[18]), f3544: num(row[19]), f45: num(row[20]),
+      ta: num(row[21]), claimed_views: num(row[22]), price: num(row[23]),
+      zorka_cpm: num(row[24]), goat_comment: String(row[25] || ''), zorka_comment: String(row[26] || ''),
+    });
+  }
+  return creators;
+}
+
 function num(v) {
   if (v === '' || v === null || v === undefined) return 0;
   const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[,$%]/g, ''));

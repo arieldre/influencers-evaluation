@@ -119,8 +119,8 @@ const DEFAULTS = {
   AVG_CPM_DED: 96.67,
   GREEN_E_INT: 0.55,
   YELLOW_E_INT: 0.85,
-  GREEN_E_DED: 1.45,
-  YELLOW_E_DED: 2.20,
+  GREEN_E_DED: 0.55,
+  YELLOW_E_DED: 0.85,
   CATEGORY_AUD_MULT: { gaming: 0.90, non_gaming: 1.10, mobile: 1.30 },
 };
 
@@ -196,7 +196,8 @@ export function scoreCreators(creators, config = {}) {
   for (const c of creators) {
     const category = c.category || '';
     const fmt = (c.format || '').toLowerCase();
-    const er = c.er || 0;
+    const rawEr = c.er || 0;
+    const er = rawEr > 1 ? rawEr / 100 : rawEr; // normalize: 5.0% → 0.05
     const claimedViews = c.claimed_views || 0;
     const price = c.price || 0;
     const zorkaCpm = c.zorka_cpm || 0;
@@ -207,8 +208,13 @@ export function scoreCreators(creators, config = {}) {
     const apiRatio = api.ratio ?? null;
     const apiError = api.error || '';
     const subWarn = api.sub_warn || '';
-    const faceData = api.face || { has_face: false, same_face: false, face_label: '—' };
     const charismaData = api.charisma || null;
+    const creativeData = c.creative || null;
+
+    // Face: use JMG's pre-filled flag if available, otherwise use ML detection
+    const faceData = c.jmg_face != null
+      ? { has_face: c.jmg_face, same_face: c.jmg_face, face_label: c.jmg_face ? 'Yes (JMG)' : 'No' }
+      : (api.face || { has_face: false, same_face: false, face_label: '—' });
 
     const catKey = detectCategoryProfile(category);
     const audMult = CATEGORY_AUD_MULT[catKey] ?? 1.0;
@@ -241,6 +247,7 @@ export function scoreCreators(creators, config = {}) {
         api_error: apiError,
         face: faceData,
         charisma: charismaData,
+        creative: creativeData,
         real_er: api.real_er ?? null,
         comment_rate: api.comment_rate ?? null,
         upload_freq: api.upload_freq ?? null,

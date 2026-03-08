@@ -1,112 +1,77 @@
 /**
- * Charisma scorer — analyzes YouTube comments to measure audience excitement.
- * Fetches top 100 comments from the 2 most recent videos.
+ * Charisma scorer — uses video statistics we already fetch (zero extra API calls).
+ * Builds a proxy score from like rate, comment rate, like/comment ratio,
+ * comment consistency, and title engagement signals.
  */
 
-const VIDEOS_TO_SAMPLE = 2;
-const COMMENTS_PER_VIDEO = 100;
-
-const GENERIC_PHRASES = [
-  'great video', 'nice video', 'good video', 'great content', 'nice content',
-  'love your content', 'love your videos', 'keep it up', 'keep up the good work',
-  'subscribed', 'subbed', 'new sub', 'just subscribed', 'first comment',
-  'early', 'who else', 'anyone else', 'same lol', 'lol same',
-];
-
-const POSITIVE_WORDS = [
-  'amazing', 'incredible', 'awesome', 'fantastic', 'brilliant', 'excellent',
-  'love', 'loved', 'obsessed', 'insane', 'crazy', 'wild', 'mindblowing',
-  'best', 'goat', 'legend', 'legendary', 'underrated', 'masterpiece',
-  'speechless', 'unreal', 'perfect', 'fire', 'banger', 'absolute',
-];
-
-async function fetchComments(apiKey, videoId) {
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=${COMMENTS_PER_VIDEO}&order=relevance&key=${apiKey}`,
-      { signal: AbortSignal.timeout(15000) }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.items || []).map(item => ({
-      text: (item.snippet.topLevelComment.snippet.textDisplay || '').replace(/<[^>]+>/g, '').trim(),
-      likes: item.snippet.topLevelComment.snippet.likeCount || 0,
-    }));
-  } catch {
-    return [];
-  }
+function arrMean(arr) { return arr.reduce((s, v) => s + v, 0) / arr.length; }
+function arrStdev(arr) {
+  if (arr.length < 2) return 0;
+  const m = arrMean(arr);
+  return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
 }
 
-function scoreComments(comments) {
-  // Filter out empty or spam-like very short comments
-  const texts = comments.map(c => c.text).filter(t => t.length > 3);
-  if (texts.length < 5) return null;
+/**
+ * @param {Array} videos — the same video objects from getRecentVideos()
+ *   each has: { views, likes, comments, title }
+ */
+export function analyzeCharisma(_apiKeyUnused, videos) {
+  if (!videos || videos.length < 2) return null;
 
-  const n = texts.length;
+  const withViews = videos.filter(v => v.views > 0);
+  if (withViews.length < 2) return null;
 
-  // Avg character length — longer = more engaged, not just "nice"
-  const avgLength = texts.reduce((s, t) => s + t.length, 0) / n;
+  const n = withViews.length;
 
-  // Excited: contains ! or has 3+ consecutive uppercase letters
-  const excitedRatio = texts.filter(t => /!/.test(t) || /[A-Z]{3,}/.test(t)).length / n;
+  // ── Per-video rates ──
+  const likeRates   = withViews.map(v => v.likes / v.views);
+  const commentRates = withViews.map(v => v.comments / v.views);
 
-  // Emoji usage
-  const emojiRatio = texts.filter(t => /\p{Emoji_Presentation}/u.test(t)).length / n;
+  const avgLikeRate    = arrMean(likeRates);
+  const avgCommentRate = arrMean(commentRates);
 
-  // Specific: comment is long enough to be about something real (not "nice vid!")
-  const specificRatio = texts.filter(t => t.length > 40).length / n;
+  // Like-to-comment ratio — lower = audience writes more, not just likes
+  const likeToComment = withViews.map(v => v.comments > 0 ? v.likes / v.comments : 999);
+  const avgLtc = arrMean(likeToComment.filter(v => v < 999));
 
-  // Positive emotional words
-  const positiveRatio = texts.filter(t => {
-    const lower = t.toLowerCase();
-    return POSITIVE_WORDS.some(w => lower.includes(w));
-  }).length / n;
+  // Comment consistency — low CV = audience reliably engages
+  const commentCounts = withViews.map(v => v.comments);
+  const commentCv = arrMean(commentCounts) > 0
+    ? arrStdev(commentCounts) / arrMean(commentCounts)
+    : 2.0;
 
-  // Questions = audience actively engaged / curious
-  const questionRatio = texts.filter(t => t.includes('?')).length / n;
+  // Title engagement — exclamation marks, caps, questions
+  const titles = withViews.map(v => v.title || '');
+  const titleExcitement = titles.filter(t => /!/.test(t) || /[A-Z]{3,}/.test(t)).length / n;
+  const titleQuestions  = titles.filter(t => t.includes('?')).length / n;
 
-  // Generic penalty — bot-like or filler comments
-  const genericRatio = texts.filter(t => {
-    const lower = t.toLowerCase();
-    return GENERIC_PHRASES.some(g => lower.includes(g));
-  }).length / n;
+  // ── Weighted score (0–1 before scaling) ──
+  // Like rate: gaming avg ~4%, great >7%. Normalize to 0–1 at 10%.
+  const likeScore    = Math.min(avgLikeRate / 0.10, 1.0);
+  // Comment rate: avg ~0.2%, great >0.5%. Normalize at 1%.
+  const commentScore = Math.min(avgCommentRate / 0.01, 1.0);
+  // Like-to-comment: <20 = amazing discussion, >100 = passive. Invert.
+  const ltcScore     = avgLtc > 0 ? Math.min(20 / Math.max(avgLtc, 1), 1.0) : 0;
+  // Comment consistency: CV <0.5 = very consistent, >1.5 = random
+  const consistScore = Math.max(0, 1.0 - commentCv / 1.5);
 
-  // Weighted score (0–1 range before scaling to 0–100)
   const raw =
-    Math.min(avgLength / 70, 1.0) * 0.28 +   // length (70 chars = ideal)
-    excitedRatio                * 0.22 +       // excitement
-    specificRatio               * 0.20 +       // specificity
-    positiveRatio               * 0.15 +       // positive words
-    questionRatio               * 0.10 +       // engagement questions
-    emojiRatio                  * 0.05 -       // emoji (minor)
-    genericRatio                * 0.18;        // generic penalty
+    likeScore    * 0.25 +
+    commentScore * 0.30 +
+    ltcScore     * 0.20 +
+    consistScore * 0.10 +
+    titleExcitement * 0.10 +
+    titleQuestions  * 0.05;
 
   const charisma = Math.max(0, Math.min(100, Math.round(raw * 100)));
 
   return {
     charisma,
-    avg_length: Math.round(avgLength),
-    excited_pct: Math.round(excitedRatio * 100),
-    emoji_pct: Math.round(emojiRatio * 100),
-    specific_pct: Math.round(specificRatio * 100),
-    positive_pct: Math.round(positiveRatio * 100),
-    question_pct: Math.round(questionRatio * 100),
-    generic_pct: Math.round(genericRatio * 100),
+    like_rate_pct: Math.round(avgLikeRate * 10000) / 100,
+    comment_rate_pct: Math.round(avgCommentRate * 10000) / 100,
+    like_to_comment: Math.round(avgLtc * 10) / 10,
+    comment_cv: Math.round(commentCv * 100) / 100,
     comment_count: n,
     label: charisma >= 68 ? 'High' : charisma >= 42 ? 'Medium' : 'Low',
   };
-}
-
-export async function analyzeCharisma(apiKey, videoIds) {
-  if (!videoIds || videoIds.length === 0) return null;
-
-  const targetIds = videoIds.slice(0, VIDEOS_TO_SAMPLE);
-  const allComments = [];
-
-  for (const id of targetIds) {
-    const comments = await fetchComments(apiKey, id);
-    allComments.push(...comments);
-  }
-
-  return scoreComments(allComments);
 }

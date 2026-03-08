@@ -191,6 +191,7 @@ export default function ResultsView({ summary }) {
               <th>Cmnt Rate</th>
               <th>Upload/days</th>
               <th>Content</th>
+              <th>Creative</th>
               <th>Comment</th>
             </tr>
           </thead>
@@ -243,7 +244,7 @@ export default function ResultsView({ summary }) {
                           const color = c.charisma >= 68 ? '#6fcf6f' : c.charisma >= 42 ? '#cfcf6f' : '#cf6f6f';
                           const bg   = c.charisma >= 68 ? '#1a4d1a' : c.charisma >= 42 ? '#4d4d1a' : '#4d1a1a';
                           return (
-                            <span title={`Avg length: ${c.avg_length}ch | Excited: ${c.excited_pct}% | Positive: ${c.positive_pct}% | Generic: ${c.generic_pct}% | ${c.comment_count} comments`}
+                            <span title={`Like rate: ${c.like_rate_pct}% | Comment rate: ${c.comment_rate_pct}% | Like/Comment: ${c.like_to_comment} | Comment CV: ${c.comment_cv} | ${c.comment_count} videos`}
                               style={{ background: bg, color, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap' }}>
                               {c.charisma} {c.label}
                             </span>
@@ -284,13 +285,29 @@ export default function ResultsView({ summary }) {
                       : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
                     }
                   </td>
+                  <td style={{ minWidth: 120 }}>
+                    {r.creative
+                      ? (() => {
+                          const s = r.creative.score;
+                          const color = s >= 7 ? '#6fcf6f' : s >= 4 ? '#cfcf6f' : '#cf6f6f';
+                          const bg   = s >= 7 ? '#1a4d1a' : s >= 4 ? '#4d4d1a' : '#4d1a1a';
+                          return (
+                            <span title={r.creative.reason}
+                              style={{ background: bg, color, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap' }}>
+                              {s}/10
+                            </span>
+                          );
+                        })()
+                      : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                    }
+                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={26} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={27} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

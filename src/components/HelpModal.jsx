@@ -76,7 +76,10 @@ export default function HelpModal({ onClose }) {
           <strong style={{ color: '#eee' }}>4. Face Detection</strong> — For each creator, loads up to 5 videos × 4 images each (custom thumbnail + 3 auto-generated video frames at 25%/50%/75%). Extracts 128-dimensional face descriptors and compares them for consistency.
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>5. Scoring</strong> — Computes QS and E ratio, assigns GREEN / YELLOW / RED. YELLOW creators get an auto-calculated counter-offer price.
+          <strong style={{ color: '#eee' }}>5. Creative Score</strong> — If an OpenAI API key is provided, sends each creator's last 10 video titles to GPT-4o mini. Asks whether the content has a genuinely unique creative concept. Returns a score 1–10 and a one-sentence explanation. Optional — leave the key blank to skip.
+        </p>
+        <p style={S.p}>
+          <strong style={{ color: '#eee' }}>6. Scoring</strong> — Computes QS and E ratio, assigns GREEN / YELLOW / RED. YELLOW creators get an auto-calculated counter-offer price.
         </p>
 
         {/* ── Scoring Formula ── */}
@@ -164,6 +167,11 @@ E = zorka_cpm / (benchmark_cpm × QS)
             <Row label="Real ER">Actual engagement rate from API: avg(likes ÷ views) across last 10 videos. Compare to Zorka's claimed ER to spot inflation.</Row>
             <Row label="Cmnt Rate">avg(comments ÷ views) — measures how much the audience is motivated to write, not just watch.</Row>
             <Row label="Upload/days">Average days between uploads. Lower = more consistent. e.g. 7d = weekly cadence.</Row>
+            <Row label="Creative">
+              GPT-4o mini originality score 1–10 based on the creator's last 10 video titles.<br/>
+              <strong>7–10</strong> = genuinely unique concept. <strong>4–6</strong> = somewhat distinctive. <strong>1–3</strong> = generic content.<br/>
+              Hover the badge to read the one-sentence reason. Only available when an OpenAI key is configured. Informational only — does not affect QS.
+            </Row>
             <Row label="Comment">Auto-generated notes: stability label, category profile, view label source, sub mismatch warnings.</Row>
           </tbody>
         </table>

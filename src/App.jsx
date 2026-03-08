@@ -5,6 +5,7 @@ import { parseExcel } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
 import { scoreCreators, summarizeResults, DEFAULTS } from './utils/scorer';
 import { detectFacesForAll } from './utils/faceDetect';
+import { analyzeCreativeAll } from './utils/creative';
 import HelpModal from './components/HelpModal';
 
 const DEFAULT_API_KEY = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
@@ -17,6 +18,7 @@ export default function App() {
   const [results, setResults] = useState(null);
   const [summary, setSummary] = useState(null);
   const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
+  const [openaiKey, setOpenaiKey] = useState('');
   const [config, setConfig] = useState({ ...DEFAULTS });
   const [showConfig, setShowConfig] = useState(false);
   const [rangeStart, setRangeStart] = useState(1);
@@ -51,9 +53,9 @@ export default function App() {
   // ── Upload ──
   const handleFile = useCallback((arrayBuffer, fileName) => {
     try {
-      const { creators: parsed, sheetName, startRow } = parseExcel(arrayBuffer);
+      const { creators: parsed, sheetName, startRow, format } = parseExcel(arrayBuffer);
       setCreators(parsed);
-      setParseInfo({ sheetName, startRow, fileName, count: parsed.length });
+      setParseInfo({ sheetName, startRow, fileName, count: parsed.length, format: format || 'zorka' });
       setRangeStart(1);
       setRangeEnd(parsed.length);
       setStep('config');
@@ -81,8 +83,16 @@ export default function App() {
         setProgress({ current: i, total, name, phase: 'face' });
       });
 
-      setCreators(withFaces);
-      const scored = scoreCreators(withFaces, config);
+      let withCreative = withFaces;
+      if (openaiKey) {
+        setProgress({ current: 0, total: withFaces.length, name: '', phase: 'creative' });
+        withCreative = await analyzeCreativeAll(openaiKey, [...withFaces], (i, total, name) => {
+          setProgress({ current: i, total, name, phase: 'creative' });
+        });
+      }
+
+      setCreators(withCreative);
+      const scored = scoreCreators(withCreative, config);
       const summ = summarizeResults(scored);
       setResults(scored);
       setSummary(summ);
@@ -91,10 +101,10 @@ export default function App() {
       // ── Persist to localStorage ──
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          results: scored, summary: summ, creators: withFaces,
+          results: scored, summary: summ, creators: withCreative,
           parseInfo, config, savedAt: Date.now(),
         }));
-        setSavedSession({ results: scored, summary: summ, creators: withFaces, parseInfo, config, savedAt: Date.now() });
+        setSavedSession({ results: scored, summary: summ, creators: withCreative, parseInfo, config, savedAt: Date.now() });
       } catch { }
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -156,6 +166,7 @@ export default function App() {
         <>
           <div className="status-bar">
             <strong>File:</strong> {parseInfo.fileName} &nbsp;|&nbsp;
+            <strong>Format:</strong> {parseInfo.format === 'jmg' ? 'JMG' : 'Zorka'} &nbsp;|&nbsp;
             <strong>Sheet:</strong> {parseInfo.sheetName} &nbsp;|&nbsp;
             <strong>Creators:</strong> {parseInfo.count} &nbsp;|&nbsp;
             <strong>Start row:</strong> {parseInfo.startRow}
@@ -188,8 +199,11 @@ export default function App() {
 
           <h2>Configuration</h2>
           <div className="config-panel">
-            <label>API Key
+            <label>YouTube API Key
               <input value={apiKey} onChange={e => setApiKey(e.target.value)} />
+            </label>
+            <label>OpenAI Key (optional — for creative score)
+              <input value={openaiKey} onChange={e => setOpenaiKey(e.target.value)} placeholder="sk-proj-..." />
             </label>
             <label>AVG CPM (Int)
               <input type="number" step="0.01" value={config.AVG_CPM_INT}
@@ -254,6 +268,8 @@ export default function App() {
           <p>
             {progress.phase === 'face'
               ? <>Detecting faces... <strong>{progress.current}/{progress.total}</strong></>
+              : progress.phase === 'creative'
+              ? <>Analyzing creative content (GPT-4o mini)... <strong>{progress.current}/{progress.total}</strong></>
               : <>Fetching YouTube data... <strong>{progress.current}/{progress.total}</strong></>
             }
             {progress.name && <> — {progress.name}</>}

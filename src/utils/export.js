@@ -37,6 +37,8 @@ function rowToFlat(r, i) {
     'GEO': r.geo || '',
     'Sub Warn': r.sub_warn || '',
     'Content Alerts': r.content_alerts?.map(a => a.label).join(', ') || '',
+    'Creative Score': r.creative?.score ?? '',
+    'Creative Reason': r.creative?.reason || '',
     'Comment': r.auto_comment || '',
   };
 }

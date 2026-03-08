@@ -203,6 +203,7 @@ function analyzeViews(allVids, claimedViews) {
       stability: 'no data', cv: null, avg: 0, median: 0,
       video_count: 0, view_label: '', ratio: null,
       video_ids: [], real_er: null, comment_rate: null, upload_freq: null,
+      _video_titles: [],
       api_notes: 'no recent videos',
     };
   }
@@ -217,6 +218,7 @@ function analyzeViews(allVids, claimedViews) {
       stability: 'dead channel', cv: 0, avg, median: med,
       video_count: viewsList.length, view_label: '', ratio: null,
       video_ids: videoIds,
+      _video_titles: valid.map(v => v.title),
       api_notes: `dead channel — avg ${avg.toLocaleString()} views`,
     };
   }
@@ -281,6 +283,8 @@ function analyzeViews(allVids, claimedViews) {
     ratio, video_ids: videoIds,
     real_er, comment_rate, upload_freq,
     content_alerts,
+    _videos: valid,
+    _video_titles: valid.map(v => v.title),
     api_notes: apiNotes,
   };
 }
@@ -307,7 +311,7 @@ export async function analyzeCreator(apiKey, creator) {
 
     const allVids = await getRecentVideos(apiKey, info.playlist);
     const metrics = analyzeViews(allVids, creator.claimed_views);
-    const charisma = await analyzeCharisma(apiKey, metrics.video_ids || []);
+    const charisma = analyzeCharisma(null, metrics._videos || []);
 
     return {
       ...metrics,

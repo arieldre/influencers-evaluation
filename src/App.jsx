@@ -194,6 +194,25 @@ export default function App() {
             <strong>Start row:</strong> {parseInfo.startRow}
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#1e1e1e', border: '1px solid #333', borderRadius: 8, padding: '12px 16px' }}>
+            <span style={{ color: '#ccc' }}>Process creators</span>
+            <input
+              type="number" min={1} max={creators.length}
+              value={rangeStart}
+              onChange={e => setRangeStart(Math.max(1, parseInt(e.target.value) || 1))}
+              style={{ width: 70 }}
+            />
+            <span style={{ color: '#888' }}>to</span>
+            <input
+              type="number" min={1} max={creators.length}
+              value={rangeEnd}
+              onChange={e => setRangeEnd(Math.min(creators.length, parseInt(e.target.value) || creators.length))}
+              style={{ width: 70 }}
+            />
+            <span style={{ color: '#888' }}>of {creators.length} total</span>
+            <span style={{ color: '#4a9eff', marginLeft: 8 }}>({Math.max(0, Math.min(creators.length, rangeEnd) - Math.max(1, rangeStart) + 1)} will be fetched)</span>
+          </div>
+
           <h2>Creators Preview</h2>
           <div style={{ overflowX: 'auto', marginBottom: 20 }}>
             <table>
@@ -251,26 +270,6 @@ export default function App() {
               <input type="number" step="0.01" value={config.YELLOW_E_DED}
                 onChange={e => updateConfig('YELLOW_E_DED', e.target.value)} />
             </label>
-          </div>
-
-          <h2>Creator Range</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#1e1e1e', border: '1px solid #333', borderRadius: 8, padding: '12px 16px' }}>
-            <span style={{ color: '#ccc' }}>Process creators</span>
-            <input
-              type="number" min={1} max={creators.length}
-              value={rangeStart}
-              onChange={e => setRangeStart(Math.max(1, parseInt(e.target.value) || 1))}
-              style={{ width: 70 }}
-            />
-            <span style={{ color: '#888' }}>to</span>
-            <input
-              type="number" min={1} max={creators.length}
-              value={rangeEnd}
-              onChange={e => setRangeEnd(Math.min(creators.length, parseInt(e.target.value) || creators.length))}
-              style={{ width: 70 }}
-            />
-            <span style={{ color: '#888' }}>of {creators.length} total</span>
-            <span style={{ color: '#4a9eff', marginLeft: 8 }}>({Math.max(0, Math.min(creators.length, rangeEnd) - Math.max(1, rangeStart) + 1)} will be fetched)</span>
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>

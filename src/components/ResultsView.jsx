@@ -185,7 +185,9 @@ export default function ResultsView({ summary }) {
               <th>Stability</th>
               <th>Face</th>
               <th>Charisma</th>
+              <th>Claimed ER</th>
               <th>Real ER</th>
+              <th>ER Gap</th>
               <th>Cmnt Rate</th>
               <th>Upload/days</th>
               <th>Comment</th>
@@ -250,7 +252,20 @@ export default function ResultsView({ summary }) {
                     }
                   </td>
                   <td className="num" style={{ fontSize: '0.8rem' }}>
+                    {r.er ? (r.er * 100).toFixed(2) + '%' : '—'}
+                  </td>
+                  <td className="num" style={{ fontSize: '0.8rem' }}>
                     {r.real_er != null ? (r.real_er * 100).toFixed(2) + '%' : '—'}
+                  </td>
+                  <td className="num" style={{ fontSize: '0.8rem' }}>
+                    {r.real_er != null && r.er
+                      ? (() => {
+                          const gap = ((r.real_er - r.er) * 100).toFixed(2);
+                          const color = gap > 0 ? '#6fcf6f' : gap < 0 ? '#cf6f6f' : '#888';
+                          return <span style={{ color }}>{gap > 0 ? '+' : ''}{gap}%</span>;
+                        })()
+                      : <span style={{ color: '#444' }}>—</span>
+                    }
                   </td>
                   <td className="num" style={{ fontSize: '0.8rem' }}>
                     {r.comment_rate != null ? (r.comment_rate * 100).toFixed(2) + '%' : '—'}
@@ -264,7 +279,7 @@ export default function ResultsView({ summary }) {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={23} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={25} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

@@ -1,11 +1,20 @@
 import * as faceapi from 'face-api.js';
 
 const MODEL_URL = '/models';
-const SAME_FACE_THRESHOLD  = 0.44;  // stricter: face-api recommends 0.4–0.45 for same person
-const MIN_SAME_FACE_RATIO  = 0.60;  // 60% of detections must match the reference face
-const VIDEOS_TO_CHECK      = 5;     // videos per creator
-const SCORE_THRESHOLD      = 0.65;  // high confidence only — filters out cartoon/game/logo false positives
-const MIN_FACE_COUNT       = 3;     // need at least 3 real detections to flag has_face=true
+// How similar two face descriptors must be to count as "same person".
+// face-api default is 0.6; we use 0.52 — tight enough to reject different people,
+// loose enough to match the same person across different thumbnail crops/lighting.
+const SAME_FACE_THRESHOLD  = 0.52;
+// % of detections that must match reference for "Same face" decision
+const MIN_SAME_FACE_RATIO  = 0.45;
+const VIDEOS_TO_CHECK      = 5;
+// TinyFaceDetector confidence floor. 0.55 = confident real faces, filters cartoon/logo
+// while still getting enough detections for reliable statistics.
+const SCORE_THRESHOLD      = 0.55;
+// Need at least this many confident detections to make any face decision.
+const MIN_FACE_COUNT       = 3;
+// Mixed High threshold — ratio >= this gets auto ×1.3 (likely a real presenter)
+const MIXED_HIGH_RATIO     = 0.30;
 
 let modelsLoaded = false;
 
@@ -91,9 +100,9 @@ export async function detectFaceConsistency(videoIds) {
   const matches = descriptors.filter(d => euclidean(d, ref) < SAME_FACE_THRESHOLD);
   const ratio = matches.length / descriptors.length;
   const sameFace = ratio >= MIN_SAME_FACE_RATIO;
-  // Mixed High: ratio ≥ 40% — likely a real presenter, just inconsistent thumbnails
-  // Mixed Low:  ratio  < 40% — low confidence, could be game characters / noise
-  const mixedHigh = !sameFace && ratio >= 0.40;
+  // Mixed High: ratio ≥ MIXED_HIGH_RATIO — likely a real presenter, just inconsistent thumbnails
+  // Mixed Low:  ratio  < MIXED_HIGH_RATIO — low confidence, could be game characters / noise
+  const mixedHigh = !sameFace && ratio >= MIXED_HIGH_RATIO;
 
   return {
     has_face: true,

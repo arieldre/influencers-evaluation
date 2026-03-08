@@ -46,6 +46,7 @@ async function getDescriptorFromUrl(url) {
 }
 
 // For each video: check custom thumbnail + 3 actual video frames (25%, 50%, 75%)
+// All 4 images loaded in parallel
 async function getDescriptorsForVideo(videoId) {
   const urls = [
     `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, // custom thumbnail
@@ -53,12 +54,8 @@ async function getDescriptorsForVideo(videoId) {
     `https://i.ytimg.com/vi/${videoId}/2.jpg`,          // frame ~50%
     `https://i.ytimg.com/vi/${videoId}/3.jpg`,          // frame ~75%
   ];
-  const descriptors = [];
-  for (const url of urls) {
-    const desc = await getDescriptorFromUrl(url);
-    if (desc) descriptors.push(desc);
-  }
-  return descriptors;
+  const results = await Promise.all(urls.map(getDescriptorFromUrl));
+  return results.filter(Boolean);
 }
 
 export async function detectFaceConsistency(videoIds) {
@@ -67,12 +64,10 @@ export async function detectFaceConsistency(videoIds) {
   }
 
   const sample = videoIds.slice(0, VIDEOS_TO_CHECK);
-  const descriptors = [];
 
-  for (const id of sample) {
-    const descs = await getDescriptorsForVideo(id);
-    descriptors.push(...descs);
-  }
+  // All videos processed in parallel — ~5x faster than sequential
+  const perVideo = await Promise.all(sample.map(getDescriptorsForVideo));
+  const descriptors = perVideo.flat();
 
   if (descriptors.length === 0) {
     return { has_face: false, same_face: false, face_count: 0, face_label: 'No face' };

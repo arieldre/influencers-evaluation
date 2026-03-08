@@ -20,6 +20,11 @@ const DECISION_BADGE = {
   'AUTO-DECLINE':{ bg: '#3a1a3a', color: '#c06fc0' },
 };
 
+const CAT_ORDER = ['mobile', 'non_gaming', 'gaming'];
+const CAT_LABEL = { mobile: '📱 Mobile', non_gaming: '🌐 Non-Gaming', gaming: '🎮 Gaming' };
+const CAT_COLOR = { mobile: '#9eff6f', non_gaming: '#4a9eff', gaming: '#cf9fff' };
+const CAT_BG    = { mobile: '#1a3a0d', non_gaming: '#0d1f3a', gaming: '#2a1a3a' };
+
 const ALL_DECISIONS = ['GREEN', 'YELLOW', 'RED', 'ERROR', 'AUTO-DECLINE'];
 
 const VIEW_FILTERS = [
@@ -83,7 +88,7 @@ export default function ResultsView({ summary }) {
     }
 
     const [field, dir] = sortBy.split('_');
-    return [...rows].sort((a, b) => {
+    const sorted = [...rows].sort((a, b) => {
       if (field === 'name') {
         const cmp = a.name.localeCompare(b.name);
         return dir === 'asc' ? cmp : -cmp;
@@ -94,7 +99,19 @@ export default function ResultsView({ summary }) {
       if (field === 'price') { va = a.price ?? 0; vb = b.price ?? 0; }
       return dir === 'asc' ? va - vb : vb - va;
     });
+
+    // Group by category: mobile → non_gaming → gaming → unknown
+    const groups = {};
+    for (const r of sorted) {
+      const cat = CAT_ORDER.includes(r.cat_profile) ? r.cat_profile : 'unknown';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(r);
+    }
+    return groups;
   }, [allRows, activeDecisions, viewFilter, sortBy]);
+
+  const filteredFlat = useMemo(() => Object.values(filtered).flat(), [filtered]);
+  const totalShown = filteredFlat.length;
 
   return (
     <div>
@@ -143,18 +160,18 @@ export default function ResultsView({ summary }) {
           </div>
 
           <span style={{ color: '#555', fontSize: '0.78rem', marginLeft: 'auto' }}>
-            {filtered.length} / {allRows.length} shown
+            {totalShown} / {allRows.length} shown
           </span>
 
           {/* Export */}
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportToExcel(allRows)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+            <button onClick={() => exportToExcel(filteredFlat)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
               Export All .xlsx
             </button>
-            <button onClick={() => exportToExcel(filtered)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+            <button onClick={() => exportToExcel(filteredFlat)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
               Filtered .xlsx
             </button>
-            <button onClick={() => exportToCSV(filtered)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a1a2a', color: '#9090cf', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+            <button onClick={() => exportToCSV(filteredFlat)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a1a2a', color: '#9090cf', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
               Filtered .csv
             </button>
           </div>
@@ -196,8 +213,41 @@ export default function ResultsView({ summary }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
-              const badge = DECISION_BADGE[r.decision];
+            {(() => {
+              const catKeys = [...CAT_ORDER, 'unknown'].filter(k => filtered[k]?.length > 0);
+              let globalIdx = 0;
+              return catKeys.map(cat => {
+                const rows = filtered[cat];
+                const label = CAT_LABEL[cat] || cat;
+                const color = CAT_COLOR[cat] || '#aaa';
+                const bg    = CAT_BG[cat]    || '#1a1a1a';
+                const greensInGroup = rows.filter(r => r.decision === 'GREEN').length;
+                const yellowsInGroup = rows.filter(r => r.decision === 'YELLOW').length;
+                return (
+                  <React.Fragment key={cat}>
+                    {/* Category header row */}
+                    <tr>
+                      <td colSpan={27} style={{
+                        background: bg,
+                        borderTop: `2px solid ${color}`,
+                        borderBottom: `1px solid ${color}40`,
+                        padding: '7px 14px',
+                        color,
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        letterSpacing: '0.04em',
+                      }}>
+                        {label}
+                        <span style={{ marginLeft: 12, fontWeight: 400, fontSize: '0.78rem', color: `${color}aa` }}>
+                          {rows.length} creator{rows.length !== 1 ? 's' : ''}
+                          {greensInGroup > 0 && <span style={{ marginLeft: 8, color: '#6fcf6f' }}>{greensInGroup} GREEN</span>}
+                          {yellowsInGroup > 0 && <span style={{ marginLeft: 8, color: '#cfcf6f' }}>{yellowsInGroup} YELLOW</span>}
+                        </span>
+                      </td>
+                    </tr>
+                    {rows.map((r) => {
+                      const i = globalIdx++;
+                      const badge = DECISION_BADGE[r.decision];
               return (
                 <tr key={i} style={{ background: DECISION_ROW_BG[r.decision] }}>
                   <td>{i + 1}</td>
@@ -305,7 +355,11 @@ export default function ResultsView({ summary }) {
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+                  </React.Fragment>
+                );
+              });
+            })()}
+            {totalShown === 0 && (
               <tr>
                 <td colSpan={27} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.

@@ -1,14 +1,159 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import ResultsView from './components/ResultsView';
-import { parseExcel } from './utils/parseExcel';
+import { parseExcel, parseApprovedSheet } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
-import { scoreCreators, summarizeResults, DEFAULTS } from './utils/scorer';
+import { scoreCreators, summarizeResults, DEFAULTS, detectCategoryProfile } from './utils/scorer';
 import { detectFacesForAll } from './utils/faceDetect';
 import { analyzeCreativeAll } from './utils/creative';
 import HelpModal from './components/HelpModal';
 
 const DEFAULT_API_KEY = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
+
+const CAT_ORDER_APP  = ['mobile', 'non_gaming', 'gaming'];
+const CAT_LABEL_APP  = { mobile: '📱 Mobile', non_gaming: '🌐 Non-Gaming', gaming: '🎮 Gaming' };
+const CAT_COLOR_APP  = { mobile: '#9eff6f', non_gaming: '#4a9eff', gaming: '#cf9fff' };
+const CAT_BG_APP     = { mobile: '#1a3a0d', non_gaming: '#0d1f3a', gaming: '#2a1a3a' };
+const PRICE_BANDS    = [
+  { label: '$200–$2,000',    min: 200,  max: 2000  },
+  { label: '$2,000–$8,500',  min: 2000, max: 8500  },
+  { label: '$8,500–$20,000', min: 8500, max: 20000 },
+];
+const fmtM = n => typeof n === 'number' && n ? `$${n.toLocaleString()}` : '—';
+const fmtN = n => typeof n === 'number' && n ? n.toLocaleString() : '—';
+
+function ApprovedSheetView({ creators }) {
+  if (!creators) return (
+    <div style={{ color: '#555', padding: '48px 0', textAlign: 'center' }}>
+      No Approved sheet found — upload an Excel file that contains an "Approved" tab.
+    </div>
+  );
+  if (!creators.length) return (
+    <div style={{ color: '#555', padding: '48px 0', textAlign: 'center' }}>Approved sheet is empty.</div>
+  );
+
+  // Exclude declined creators
+  const active = creators.filter(c => !/declined/i.test(c.status || ''));
+
+  const byCat = {};
+  for (const cat of [...CAT_ORDER_APP, 'unknown']) byCat[cat] = [];
+  for (const c of active) {
+    const cat = CAT_ORDER_APP.includes(detectCategoryProfile(c.category))
+      ? detectCategoryProfile(c.category) : 'unknown';
+    byCat[cat].push(c);
+  }
+
+  const totalAll = active.reduce((s, c) => s + (c.price || 0), 0);
+  const globalBands = PRICE_BANDS.map(b => {
+    const inBand = active.filter(c => (c.price || 0) >= b.min && (c.price || 0) < b.max);
+    return { ...b, count: inBand.length, sum: inBand.reduce((s, c) => s + (c.price || 0), 0) };
+  });
+  const declined = creators.length - active.length;
+
+  return (
+    <div>
+      {/* ── Global summary ── */}
+      <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
+          <span style={{ color: '#6fcf6f', fontWeight: 700, fontSize: '1rem' }}>Total Budget</span>
+          <span style={{ color: '#6fcf6f', fontWeight: 800, fontSize: '1.3rem' }}>{fmtM(totalAll)}</span>
+          <span style={{ color: '#555', fontSize: '0.78rem' }}>{active.length} creators{declined > 0 ? ` · ${declined} declined excluded` : ''}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {globalBands.map(b => (
+            <div key={b.label} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 6, padding: '10px 16px', minWidth: 160 }}>
+              <div style={{ color: '#666', fontSize: '0.72rem', marginBottom: 4 }}>{b.label}</div>
+              <div style={{ color: '#6fcf6f', fontWeight: 700, fontSize: '1.05rem' }}>{b.sum ? fmtM(b.sum) : '—'}</div>
+              <div style={{ color: '#555', fontSize: '0.72rem', marginTop: 2 }}>{b.count} creator{b.count !== 1 ? 's' : ''}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {[...CAT_ORDER_APP, 'unknown'].filter(cat => byCat[cat]?.length > 0).map(cat => {
+        const rows  = byCat[cat];
+        const color = CAT_COLOR_APP[cat] || '#aaa';
+        const bg    = CAT_BG_APP[cat]    || '#1a1a1a';
+        const label = CAT_LABEL_APP[cat] || cat;
+        const catTotal = rows.reduce((s, r) => s + (r.price || 0), 0);
+
+        const bands = PRICE_BANDS.map(b => {
+          const inBand = rows.filter(r => (r.price || 0) >= b.min && (r.price || 0) < b.max);
+          return { ...b, count: inBand.length, sum: inBand.reduce((s, r) => s + (r.price || 0), 0) };
+        });
+
+        return (
+          <div key={cat} style={{ marginBottom: 36 }}>
+            {/* Category header */}
+            <div style={{ background: bg, borderTop: `2px solid ${color}`, borderBottom: `1px solid ${color}40`, padding: '8px 14px', marginBottom: 12 }}>
+              <span style={{ color, fontWeight: 700, fontSize: '0.9rem' }}>{label}</span>
+              <span style={{ marginLeft: 12, color: `${color}aa`, fontSize: '0.78rem' }}>
+                {rows.length} creator{rows.length !== 1 ? 's' : ''} · {fmtM(catTotal)}
+              </span>
+            </div>
+
+            {/* Price-band summary */}
+            <table style={{ marginBottom: 14, width: 'auto', fontSize: '0.78rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', color: '#666', paddingRight: 24 }}>Price Range</th>
+                  <th style={{ textAlign: 'right', color: '#666', paddingRight: 24 }}>Creators</th>
+                  <th style={{ textAlign: 'right', color: '#666' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bands.map(b => (
+                  <tr key={b.label}>
+                    <td style={{ color: '#aaa', paddingRight: 24 }}>{b.label}</td>
+                    <td style={{ textAlign: 'right', paddingRight: 24, color: b.count ? '#ccc' : '#444' }}>{b.count || '—'}</td>
+                    <td style={{ textAlign: 'right', color: b.sum ? '#6fcf6f' : '#444' }}>{b.sum ? fmtM(b.sum) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Creator table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th><th>Name</th><th>Status</th><th>Release Date</th>
+                    <th>Format</th><th>Category</th><th>Followers</th>
+                    <th>Expected Views</th><th>Price</th><th>CPM</th>
+                    <th>ER</th><th>Geos</th><th>GOAT Comment</th><th>Zorka Comment</th>
+                    <th>Scripts/Drafts</th><th>Release Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} style={{ background: '#0d1f0d' }}>
+                      <td>{i + 1}</td>
+                      <td>{r.link ? <a href={r.link} target="_blank" rel="noreferrer" style={{ color: '#4a9eff', textDecoration: 'none' }}>{r.name}</a> : r.name}</td>
+                      <td style={{ fontSize: '0.78rem', color: '#aaa' }}>{r.status || '—'}</td>
+                      <td style={{ fontSize: '0.78rem', color: '#aaa', whiteSpace: 'nowrap' }}>{r.release_date || '—'}</td>
+                      <td>{r.format || '—'}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{r.category || '—'}</td>
+                      <td className="num">{fmtN(r.followers)}</td>
+                      <td className="num">{fmtN(r.claimed_views)}</td>
+                      <td className="num">{fmtM(r.price)}</td>
+                      <td className="num">{r.zorka_cpm ? r.zorka_cpm.toFixed(1) : '—'}</td>
+                      <td className="num">{r.er ? (r.er * 100).toFixed(1) + '%' : '—'}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{r.geo || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', color: '#999', minWidth: 140 }}>{r.goat_comment || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', color: '#999', minWidth: 140 }}>{r.zorka_comment || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', color: '#aaa' }}>{r.scripts || '—'}</td>
+                      <td>{r.release_link ? <a href={r.release_link} target="_blank" rel="noreferrer" style={{ color: '#4a9eff', fontSize: '0.75rem' }}>Link</a> : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function App() {
   const [step, setStep] = useState('upload'); // upload | config | fetching | results
@@ -25,6 +170,8 @@ export default function App() {
   const [rangeEnd, setRangeEnd] = useState(100);
   const [showHelp, setShowHelp] = useState(false);
   const [savedSession, setSavedSession] = useState(null);
+  const [appTab, setAppTab] = useState('all');
+  const [approvedFromFile, setApprovedFromFile] = useState(null);
 
   const STORAGE_KEY = 'influencer_pipeline_session';
 
@@ -58,6 +205,8 @@ export default function App() {
       setParseInfo({ sheetName, startRow, fileName, count: parsed.length, format: format || 'zorka' });
       setRangeStart(1);
       setRangeEnd(parsed.length);
+      const approved = parseApprovedSheet(arrayBuffer);
+      if (approved) setApprovedFromFile(approved);
       setStep('config');
     } catch (err) {
       alert(`Error parsing file: ${err.message}`);
@@ -152,7 +301,7 @@ export default function App() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <h1>Influencer Pipeline Evaluator</h1>
-          <p style={{ color: '#888', marginBottom: 24 }}>
+          <p style={{ color: '#888', marginBottom: 12 }}>
             Upload Zorka Excel → Fetch YT data → Auto-score → Review decisions
           </p>
         </div>
@@ -166,6 +315,30 @@ export default function App() {
           }}
         >?</button>
       </div>
+
+      {/* ── Top-level tabs ── */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
+        {[
+          { id: 'all',      label: 'All' },
+          { id: 'approved', label: `Approved${summary ? ` (${summary.greens?.length ?? 0})` : ''}` },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setAppTab(tab.id)} style={{
+            padding: '7px 22px',
+            border: '1px solid #2a2a2a',
+            borderBottom: appTab === tab.id ? `2px solid ${tab.id === 'approved' ? '#6fcf6f' : '#4a9eff'}` : '1px solid #2a2a2a',
+            background: appTab === tab.id ? (tab.id === 'approved' ? '#0d1f0d' : '#0d1220') : '#111',
+            color: appTab === tab.id ? (tab.id === 'approved' ? '#6fcf6f' : '#4a9eff') : '#555',
+            cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+            borderRadius: tab.id === 'all' ? '6px 0 0 6px' : '0 6px 6px 0',
+            transition: 'all 0.12s',
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
+      {/* ── Approved tab view (from Excel "Approved" sheet) ── */}
+      {appTab === 'approved' && <ApprovedSheetView creators={approvedFromFile} />}
+
+      {appTab === 'all' && <>
 
       {/* UPLOAD */}
       {step === 'upload' && (
@@ -211,6 +384,15 @@ export default function App() {
             />
             <span style={{ color: '#888' }}>of {creators.length} total</span>
             <span style={{ color: '#4a9eff', marginLeft: 8 }}>({Math.max(0, Math.min(creators.length, rangeEnd) - Math.max(1, rangeStart) + 1)} will be fetched)</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <button className="btn btn-secondary" onClick={() => { setStep('upload'); setCreators([]); }}>
+              ← Back
+            </button>
+            <button className="btn btn-primary" onClick={runPipeline} disabled={!apiKey || !creators.length}>
+              Fetch YouTube Data & Score ({Math.max(0, Math.min(creators.length, rangeEnd) - Math.max(1, rangeStart) + 1)} creators)
+            </button>
           </div>
 
           <h2>Creators Preview</h2>
@@ -361,6 +543,8 @@ export default function App() {
           <ResultsView summary={summary} onFaceOverride={onFaceOverride} />
         </>
       )}
+
+      </>}
     </div>
   );
 }

@@ -4,6 +4,65 @@ import * as XLSX from 'xlsx';
  * Parse uploaded Excel file, auto-detect format (Zorka vs JMG),
  * auto-detect sheet & start row, return array of creator objects.
  */
+/**
+ * Parse the "Approved" sheet if present.
+ * Columns: 0=Name, 1=Link, 2=ReleaseDate, 3=Status, 4=Scripts, 5=ReleaseLink,
+ *          6=Category, 7=Followers, 8=ER, 9=Format, 10=Geos,
+ *          11-15=Male(13-17,18-24,25-34,35-44,45+),
+ *          16-20=Female(13-17,18-24,25-34,35-44,45+),
+ *          21=TA%, 22=ExpectedViews, 23=Price, 24=CPM,
+ *          25=GOATComments, 26=ZorkaComments
+ */
+export function parseApprovedSheet(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheetName = wb.SheetNames.find(n => /approved/i.test(n));
+  if (!sheetName) return null;
+
+  const ws = wb.Sheets[sheetName];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  // Find first data row with a YouTube link in col 1
+  let startRow = 0;
+  for (let r = 0; r < raw.length; r++) {
+    if (/youtube\.com|youtu\.be/i.test(String(raw[r]?.[1] || ''))) {
+      startRow = r;
+      break;
+    }
+  }
+
+  const creators = [];
+  for (let r = startRow; r < raw.length; r++) {
+    const row = raw[r];
+    const name = String(row[0] || '').trim();
+    const link = String(row[1] || '').trim();
+    if (!name || !link || !/youtube|youtu\.be/i.test(link)) continue;
+
+    creators.push({
+      name,
+      link,
+      release_date: String(row[2] || ''),
+      status:       String(row[3] || ''),
+      scripts:      String(row[4] || ''),
+      release_link: String(row[5] || ''),
+      category:     String(row[6] || ''),
+      followers:    num(row[7]),
+      er:           num(row[8]),
+      format:       String(row[9] || ''),
+      geo:          String(row[10] || ''),
+      m1317: num(row[11]), m1824: num(row[12]), m2534: num(row[13]), m3544: num(row[14]), m45: num(row[15]),
+      f1317: num(row[16]), f1824: num(row[17]), f2534: num(row[18]), f3544: num(row[19]), f45: num(row[20]),
+      ta:            num(row[21]),
+      claimed_views: num(row[22]),
+      price:         num(row[23]),
+      zorka_cpm:     num(row[24]),
+      goat_comment:  String(row[25] || ''),
+      zorka_comment: String(row[26] || ''),
+    });
+  }
+
+  return creators;
+}
+
 export function parseExcel(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' });
 

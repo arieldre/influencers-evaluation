@@ -126,7 +126,7 @@ const DEFAULTS = {
 
 // ── Helpers ──
 
-function detectCategoryProfile(category) {
+export function detectCategoryProfile(category) {
   const cat = String(category).toLowerCase();
   if (MOBILE_KEYWORDS.some(k => cat.includes(k))) return 'mobile';
   if (GAMING_KEYWORDS.some(k => cat.includes(k))) return 'gaming';
@@ -403,4 +403,4 @@ export function summarizeResults(results) {
   return { greens, yellows, reds, errors, declines, greenSpend, yellowOffer };
 }
 
-export { detectCategoryProfile, DEFAULTS };
+export { DEFAULTS };

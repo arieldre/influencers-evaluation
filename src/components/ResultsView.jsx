@@ -60,7 +60,7 @@ function filterBtn(active, activeStyle) {
   };
 }
 
-export default function ResultsView({ summary, onFaceOverride }) {
+export default function ResultsView({ summary, onFaceOverride, forceTab }) {
   const { greens, yellows, reds, errors, declines, greenSpend, yellowOffer } = summary;
 
   const allRows = useMemo(
@@ -68,6 +68,7 @@ export default function ResultsView({ summary, onFaceOverride }) {
     [greens, yellows, reds, errors, declines]
   );
 
+  const [activeTab, setActiveTab] = useState(forceTab || 'all');
   const [activeDecisions, setActiveDecisions] = useState(new Set(ALL_DECISIONS));
   const [viewFilter, setViewFilter] = useState('all');
   const [sortBy, setSortBy] = useState('e_asc');
@@ -81,7 +82,9 @@ export default function ResultsView({ summary, onFaceOverride }) {
   };
 
   const filtered = useMemo(() => {
-    let rows = allRows.filter(r => activeDecisions.has(r.decision));
+    let rows = activeTab === 'approved'
+      ? allRows.filter(r => r.decision === 'GREEN')
+      : allRows.filter(r => activeDecisions.has(r.decision));
 
     if (viewFilter !== 'all') {
       rows = rows.filter(r => (r.view_label || '') === viewFilter);
@@ -113,13 +116,179 @@ export default function ResultsView({ summary, onFaceOverride }) {
   const filteredFlat = useMemo(() => Object.values(filtered).flat(), [filtered]);
   const totalShown = filteredFlat.length;
 
+  if (activeTab === 'approved') {
+    const PRICE_BANDS = [
+      { label: '$200–$2,000',   min: 200,  max: 2000  },
+      { label: '$2,000–$8,500', min: 2000, max: 8500  },
+      { label: '$8,500–$20,000',min: 8500, max: 20000 },
+    ];
+
+    const approvedByCat = {};
+    for (const cat of [...CAT_ORDER, 'unknown']) {
+      const rows = greens.filter(r => (CAT_ORDER.includes(r.cat_profile) ? r.cat_profile : 'unknown') === cat);
+      if (rows.length) approvedByCat[cat] = rows;
+    }
+
+    return (
+      <div>
+        {Object.entries(approvedByCat).map(([cat, rows]) => {
+          const color = CAT_COLOR[cat] || '#aaa';
+          const bg    = CAT_BG[cat]    || '#1a1a1a';
+          const label = CAT_LABEL[cat] || cat;
+          const catTotal = rows.reduce((s, r) => s + (r.price || 0), 0);
+
+          const bands = PRICE_BANDS.map(b => {
+            const inBand = rows.filter(r => (r.price || 0) >= b.min && (r.price || 0) < b.max);
+            return { ...b, count: inBand.length, sum: inBand.reduce((s, r) => s + (r.price || 0), 0) };
+          });
+
+          return (
+            <div key={cat} style={{ marginBottom: 36 }}>
+              {/* Category header */}
+              <div style={{ background: bg, borderTop: `2px solid ${color}`, borderBottom: `1px solid ${color}40`, padding: '8px 14px', marginBottom: 12 }}>
+                <span style={{ color, fontWeight: 700, fontSize: '0.9rem' }}>{label}</span>
+                <span style={{ marginLeft: 12, color: `${color}aa`, fontSize: '0.78rem' }}>
+                  {rows.length} creator{rows.length !== 1 ? 's' : ''} · total {fmtMoney(catTotal)}
+                </span>
+              </div>
+
+              {/* Price-band summary table */}
+              <table style={{ marginBottom: 14, width: 'auto', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', color: '#666', paddingRight: 24 }}>Price Range</th>
+                    <th style={{ textAlign: 'right', color: '#666', paddingRight: 24 }}>Creators</th>
+                    <th style={{ textAlign: 'right', color: '#666' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bands.map(b => (
+                    <tr key={b.label}>
+                      <td style={{ color: '#aaa', paddingRight: 24 }}>{b.label}</td>
+                      <td style={{ textAlign: 'right', paddingRight: 24, color: b.count ? '#ccc' : '#444' }}>{b.count || '—'}</td>
+                      <td style={{ textAlign: 'right', color: b.sum ? '#6fcf6f' : '#444' }}>{b.sum ? fmtMoney(b.sum) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Creator rows */}
+              <div style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Name</th><th>Cat</th><th>Fmt</th>
+                      <th>Price</th><th>Offer</th><th>Disc</th>
+                      <th>Claimed</th><th>Actual</th><th>Z.CPM</th><th>Real CPM</th>
+                      <th>QS</th><th>E</th><th>Views</th><th>Ratio</th>
+                      <th>Stability</th><th>Face</th><th>Charisma</th>
+                      <th>Claimed ER</th><th>Real ER</th><th>ER Gap</th>
+                      <th>Cmnt Rate</th><th>Upload/days</th><th>Content</th>
+                      <th>Creative</th><th>Comment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const badge = DECISION_BADGE[r.decision];
+                      return (
+                        <tr key={i} style={{ background: DECISION_ROW_BG[r.decision] }}>
+                          <td>{i + 1}</td>
+                          <td>{r.link ? <a href={r.link} target="_blank" rel="noreferrer" style={{ color: '#4a9eff', textDecoration: 'none' }}>{r.name}</a> : r.name}</td>
+                          <td>{r.cat_profile || '—'}</td>
+                          <td>{r.format || '—'}</td>
+                          <td className="num">{fmtMoney(r.price)}</td>
+                          <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
+                          <td>{r.discount || '—'}</td>
+                          <td className="num">{fmt(r.claimed_views)}</td>
+                          <td className="num">{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
+                          <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
+                          <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
+                          <td className="num">{r.qs != null && r.qs !== 0 ? r.qs.toFixed(3) : '—'}</td>
+                          <td className="num">{r.e != null && r.e !== 999 ? r.e.toFixed(3) : '—'}</td>
+                          <td style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', color: r.view_label ? '#cfcf6f' : '#555' }}>{r.view_label || '—'}</td>
+                          <td className="num">{r.view_ratio != null ? r.view_ratio.toFixed(2) + 'x' : '—'}</td>
+                          <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{r.stability || '—'}</td>
+                          <td>
+                            {r.face?.face_override === 'yes'
+                              ? <span style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Same face ✓</span>
+                              : r.face?.face_override === 'no'
+                                ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face ✗</span>
+                              : r.face?.same_face
+                                ? <span title={`${r.face.face_ratio}% match`} style={{ background: '#1a4d1a', color: '#6fcf6f', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>Same face</span>
+                              : r.face?.mixed_high
+                                ? <span title={`${r.face.face_ratio}% face match`} style={{ background: '#1a3a1a', color: '#90cf70', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>Mixed (High ✓)</span>
+                              : r.face?.has_face
+                                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ background: '#3a2a0a', color: '#cfaa40', padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700 }}>Mixed (Low)</span>
+                                    {onFaceOverride && <>
+                                      <button onClick={() => onFaceOverride(r.link, 'yes')} style={{ background: '#1a4d1a', color: '#6fcf6f', border: '1px solid #2a6a2a', borderRadius: 3, padding: '1px 7px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Yes</button>
+                                      <button onClick={() => onFaceOverride(r.link, 'no')} style={{ background: '#4d1a1a', color: '#cf6f6f', border: '1px solid #6a2a2a', borderRadius: 3, padding: '1px 7px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>No</button>
+                                    </>}
+                                  </span>
+                              : r.face?.has_face === false
+                                ? <span style={{ color: '#555', fontSize: '0.75rem' }}>No face</span>
+                                : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                            }
+                          </td>
+                          <td>
+                            {r.charisma ? (() => {
+                              const c = r.charisma;
+                              const col = c.charisma >= 68 ? '#6fcf6f' : c.charisma >= 42 ? '#cfcf6f' : '#cf6f6f';
+                              const bg  = c.charisma >= 68 ? '#1a4d1a' : c.charisma >= 42 ? '#4d4d1a' : '#4d1a1a';
+                              return <span title={`Like rate: ${c.like_rate_pct}% | Comment rate: ${c.comment_rate_pct}%`} style={{ background: bg, color: col, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>{c.charisma} {c.label}</span>;
+                            })() : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>}
+                          </td>
+                          <td className="num" style={{ fontSize: '0.8rem' }}>{r.er ? (r.er * 100).toFixed(2) + '%' : '—'}</td>
+                          <td className="num" style={{ fontSize: '0.8rem' }}>{r.real_er != null ? (r.real_er * 100).toFixed(2) + '%' : '—'}</td>
+                          <td className="num" style={{ fontSize: '0.8rem' }}>
+                            {r.real_er != null && r.er ? (() => {
+                              const gap = ((r.real_er - r.er) * 100).toFixed(2);
+                              return <span style={{ color: gap > 0 ? '#6fcf6f' : gap < 0 ? '#cf6f6f' : '#888' }}>{gap > 0 ? '+' : ''}{gap}%</span>;
+                            })() : <span style={{ color: '#444' }}>—</span>}
+                          </td>
+                          <td className="num" style={{ fontSize: '0.8rem' }}>{r.comment_rate != null ? (r.comment_rate * 100).toFixed(2) + '%' : '—'}</td>
+                          <td className="num" style={{ fontSize: '0.8rem' }}>{r.upload_freq != null ? r.upload_freq + 'd' : '—'}</td>
+                          <td style={{ minWidth: 140 }}>
+                            {r.content_alerts?.length > 0
+                              ? r.content_alerts.map((a, i) => <span key={i} style={{ display: 'inline-block', background: a.bg, color: a.color, padding: '2px 6px', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600, marginRight: 3, marginBottom: 2 }}>{a.label}</span>)
+                              : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>}
+                          </td>
+                          <td style={{ minWidth: 120 }}>
+                            {r.creative ? (() => {
+                              const s = r.creative.score;
+                              const col = s >= 7 ? '#6fcf6f' : s >= 4 ? '#cfcf6f' : '#cf6f6f';
+                              const bg  = s >= 7 ? '#1a4d1a' : s >= 4 ? '#4d4d1a' : '#4d1a1a';
+                              return <span title={r.creative.reason} style={{ background: bg, color: col, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>{s}/10</span>;
+                            })() : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>}
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Budget summary */}
+        <div className="budget" style={{ marginTop: 20 }}>
+          <div>💰 <strong>APPROVED BUDGET</strong></div>
+          <div>GREEN at asking: <strong>{fmtMoney(greenSpend)}</strong></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* ── Filter bar ── */}
       <div style={{ background: '#161616', border: '1px solid #2a2a2a', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
 
-          {/* Decision toggles */}
+          {/* Decision toggles — hidden on Approved tab */}
+          {activeTab === 'all' && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: '#666', fontSize: '0.78rem' }}>Decision:</span>
             {ALL_DECISIONS.map(dec => (
@@ -132,6 +301,7 @@ export default function ResultsView({ summary, onFaceOverride }) {
               </button>
             ))}
           </div>
+          )}
 
           {/* View label filter */}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>

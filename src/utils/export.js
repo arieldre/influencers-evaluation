@@ -36,6 +36,7 @@ function rowToFlat(r, i) {
     'Claimed ER': r.er || '',
     'GEO': r.geo || '',
     'Sub Warn': r.sub_warn || '',
+    'Content Alerts': r.content_alerts?.map(a => a.label).join(', ') || '',
     'Comment': r.auto_comment || '',
   };
 }

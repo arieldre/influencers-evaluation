@@ -244,6 +244,7 @@ export function scoreCreators(creators, config = {}) {
         real_er: api.real_er ?? null,
         comment_rate: api.comment_rate ?? null,
         upload_freq: api.upload_freq ?? null,
+        content_alerts: api.content_alerts ?? [],
         er,
         geo: c.geo || '',
         ...overrides,

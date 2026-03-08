@@ -120,12 +120,59 @@ async function getRecentVideos(apiKey, playlistId) {
         views: parseInt(it.statistics.viewCount || '0', 10),
         likes: parseInt(it.statistics.likeCount || '0', 10),
         comments: parseInt(it.statistics.commentCount || '0', 10),
+        title: it.snippet.title || '',
+        desc: (it.snippet.description || '').slice(0, 400),
         pub,
         is_short: dur > 0 && dur < 180,
       });
     }
   }
   return vids;
+}
+
+// ── Content alerts (from titles + descriptions, zero extra quota) ──
+
+function analyzeContent(vids) {
+  if (!vids.length) return [];
+  const n = vids.length;
+  const alerts = [];
+
+  // Sponsored — title or description signals
+  const sponsoredCount = vids.filter(v => {
+    const t = (v.title + ' ' + v.desc).toLowerCase();
+    return /#ad\b|#sponsored|paid partnership|sponsored by|in partnership with|this video (is )?sponsored|brought to you by/i.test(t);
+  }).length;
+  if (sponsoredCount > 0) alerts.push({ label: `Sponsored ${sponsoredCount}/${n}`, color: '#cf9f3f', bg: '#3f2a0a' });
+
+  // Live streams
+  const liveCount = vids.filter(v =>
+    /\[live\]|\blive stream\b|\blivestream\b|\bvod\b|\bstream recording\b/i.test(v.title)
+  ).length;
+  if (liveCount > 0) alerts.push({ label: `Live ${liveCount}/${n}`, color: '#4a9eff', bg: '#0a1a3f' });
+
+  // Collabs
+  const collabCount = vids.filter(v =>
+    /\bft\.|\bfeat\.|\bw\/\s|with @|\bcollab\b/i.test(v.title)
+  ).length;
+  if (collabCount >= 2) alerts.push({ label: `Collabs ${collabCount}/${n}`, color: '#c06fc0', bg: '#2a0a2a' });
+
+  // Series / episodic
+  const seriesCount = vids.filter(v =>
+    /\bep\.?\s*\d+|\bepisode\s*\d+|\bpart\s*\d+|\bseason\s*\d+|\s#\d+\b/i.test(v.title)
+  ).length;
+  if (seriesCount >= 3) alerts.push({ label: `Series ${seriesCount}/${n}`, color: '#6fcf6f', bg: '#0a2a0a' });
+
+  // Clickbait — all caps, 3+ !, known bait phrases
+  const clickbaitCount = vids.filter(v => {
+    const t = v.title;
+    const exclamations = (t.match(/!/g) || []).length;
+    const capsRatio = (t.match(/[A-Z]/g) || []).length / Math.max(t.length, 1);
+    return exclamations >= 3 || capsRatio > 0.6 ||
+      /you won't believe|gone wrong|not clickbait|shocking|i quit|i'm done|he did what|unbelievable|must watch/i.test(t);
+  }).length;
+  if (clickbaitCount >= 3) alerts.push({ label: `Clickbait ${clickbaitCount}/${n}`, color: '#cf6f6f', bg: '#2a0a0a' });
+
+  return alerts;
 }
 
 // ── Analyze views (matches Colab exactly) ──
@@ -205,6 +252,9 @@ function analyzeViews(allVids, claimedViews) {
     apiNotes += ` | ${ratio.toFixed(2)}x claimed`;
   }
 
+  // Content alerts from titles/descriptions
+  const content_alerts = analyzeContent(valid);
+
   // Real ER and comment rate from API data (zero extra quota)
   const withViews = valid.filter(v => v.views > 0);
   const real_er = withViews.length
@@ -230,6 +280,7 @@ function analyzeViews(allVids, claimedViews) {
     video_count: viewsList.length, view_label: viewLabel,
     ratio, video_ids: videoIds,
     real_er, comment_rate, upload_freq,
+    content_alerts,
     api_notes: apiNotes,
   };
 }

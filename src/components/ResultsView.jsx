@@ -190,6 +190,7 @@ export default function ResultsView({ summary }) {
               <th>ER Gap</th>
               <th>Cmnt Rate</th>
               <th>Upload/days</th>
+              <th>Content</th>
               <th>Comment</th>
             </tr>
           </thead>
@@ -273,13 +274,23 @@ export default function ResultsView({ summary }) {
                   <td className="num" style={{ fontSize: '0.8rem' }}>
                     {r.upload_freq != null ? r.upload_freq + 'd' : '—'}
                   </td>
+                  <td style={{ minWidth: 140 }}>
+                    {r.content_alerts?.length > 0
+                      ? r.content_alerts.map((a, i) => (
+                          <span key={i} style={{ display: 'inline-block', background: a.bg, color: a.color, padding: '2px 6px', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600, marginRight: 3, marginBottom: 2, whiteSpace: 'nowrap' }}>
+                            {a.label}
+                          </span>
+                        ))
+                      : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>
+                    }
+                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={25} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
+                <td colSpan={26} style={{ textAlign: 'center', color: '#555', padding: '24px' }}>
                   No results match the current filters.
                 </td>
               </tr>

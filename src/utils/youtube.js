@@ -10,6 +10,9 @@ const DEAD_CHANNEL_THR = 5_000;
 const CV_STABLE = 0.70;
 const CV_SOMEWHAT = 1.00;
 
+// Backup key — auto-used when the primary key's daily quota is exhausted
+const BACKUP_API_KEY = 'AIzaSyCg3jSPqZ7uXtevd_u8nKnLmMdreDQPZpA';
+
 function getCutoff() {
   const d = new Date();
   d.setDate(d.getDate() - MAX_AGE_DAYS);
@@ -330,6 +333,11 @@ export async function analyzeCreator(apiKey, creator) {
 
 export async function analyzeAll(apiKey, creators, onProgress) {
   const cache = {};
+  // Build key rotation list: primary first, then backup (if different)
+  const keys = [apiKey];
+  if (BACKUP_API_KEY && BACKUP_API_KEY !== apiKey) keys.push(BACKUP_API_KEY);
+  let keyIndex = 0;
+  let activeKey = keys[keyIndex];
   let quotaDead = false;
 
   for (let i = 0; i < creators.length; i++) {
@@ -358,18 +366,37 @@ export async function analyzeAll(apiKey, creators, onProgress) {
     }
 
     try {
-      c.api = await analyzeCreator(apiKey, c);
+      c.api = await analyzeCreator(activeKey, c);
       cache[c.link] = c.api;
       if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
       if (i < creators.length - 1) await new Promise(r => setTimeout(r, 150));
     } catch (err) {
       if (err.message === 'QUOTA_EXHAUSTED') {
-        quotaDead = true;
-        c.api = { error: 'quota exhausted' };
+        // Try rotating to the next key
+        keyIndex++;
+        if (keyIndex < keys.length) {
+          activeKey = keys[keyIndex];
+          console.warn(`[youtube] Key ${keyIndex} quota exhausted — rotating to backup key`);
+          // Retry this creator with the new key
+          try {
+            c.api = await analyzeCreator(activeKey, c);
+            cache[c.link] = c.api;
+            if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
+            if (i < creators.length - 1) await new Promise(r => setTimeout(r, 150));
+          } catch (retryErr) {
+            if (retryErr.message === 'QUOTA_EXHAUSTED') quotaDead = true;
+            c.api = { error: retryErr.message === 'QUOTA_EXHAUSTED' ? 'quota exhausted (all keys)' : retryErr.message };
+            if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
+          }
+        } else {
+          quotaDead = true;
+          c.api = { error: 'quota exhausted (all keys)' };
+          if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
+        }
       } else {
         c.api = { error: err.message };
+        if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
       }
-      if (onProgress) onProgress(i + 1, creators.length, c.name, c.api);
     }
   }
 

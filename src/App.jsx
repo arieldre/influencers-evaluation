@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import ResultsView from './components/ResultsView';
 import { parseExcel } from './utils/parseExcel';
@@ -22,6 +22,31 @@ export default function App() {
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(100);
   const [showHelp, setShowHelp] = useState(false);
+  const [savedSession, setSavedSession] = useState(null);
+
+  const STORAGE_KEY = 'influencer_pipeline_session';
+
+  // ── Load saved session on mount ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setSavedSession(JSON.parse(raw));
+    } catch { }
+  }, []);
+
+  const restoreSession = () => {
+    setResults(savedSession.results);
+    setSummary(savedSession.summary);
+    setCreators(savedSession.creators);
+    setParseInfo(savedSession.parseInfo);
+    setConfig(savedSession.config);
+    setStep('results');
+  };
+
+  const clearSession = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setSavedSession(null);
+  };
 
   // ── Upload ──
   const handleFile = useCallback((arrayBuffer, fileName) => {
@@ -62,6 +87,15 @@ export default function App() {
       setResults(scored);
       setSummary(summ);
       setStep('results');
+
+      // ── Persist to localStorage ──
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          results: scored, summary: summ, creators: withFaces,
+          parseInfo, config, savedAt: Date.now(),
+        }));
+        setSavedSession({ results: scored, summary: summ, creators: withFaces, parseInfo, config, savedAt: Date.now() });
+      } catch { }
     } catch (err) {
       alert(`Error: ${err.message}`);
       setStep('config');
@@ -102,7 +136,20 @@ export default function App() {
       </div>
 
       {/* UPLOAD */}
-      {step === 'upload' && <FileUpload onFileLoaded={handleFile} />}
+      {step === 'upload' && (
+        <>
+          {savedSession && (
+            <div style={{ background: '#1a2a1a', border: '1px solid #2a4a2a', borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ color: '#6fcf6f', fontSize: '0.85rem' }}>
+                Saved session: <strong>{savedSession.parseInfo?.fileName}</strong> — {savedSession.results?.length} creators — {new Date(savedSession.savedAt).toLocaleString()}
+              </span>
+              <button className="btn btn-primary" style={{ padding: '4px 14px', fontSize: '0.8rem' }} onClick={restoreSession}>Restore</button>
+              <button className="btn btn-secondary" style={{ padding: '4px 14px', fontSize: '0.8rem' }} onClick={clearSession}>Dismiss</button>
+            </div>
+          )}
+          <FileUpload onFileLoaded={handleFile} />
+        </>
+      )}
 
       {/* CONFIG + PREVIEW */}
       {step === 'config' && parseInfo && (

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { exportToExcel, exportToCSV } from '../utils/export.js';
 
 const fmt = (n) => typeof n === 'number' ? n.toLocaleString() : (n || '—');
 const fmtMoney = (n) => typeof n === 'number' ? `$${n.toLocaleString()}` : '—';
@@ -144,6 +145,19 @@ export default function ResultsView({ summary }) {
           <span style={{ color: '#555', fontSize: '0.78rem', marginLeft: 'auto' }}>
             {filtered.length} / {allRows.length} shown
           </span>
+
+          {/* Export */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => exportToExcel(allRows)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              Export All .xlsx
+            </button>
+            <button onClick={() => exportToExcel(filtered)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a2a1a', color: '#6fcf6f', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              Filtered .xlsx
+            </button>
+            <button onClick={() => exportToCSV(filtered)} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #3a3a3a', background: '#1a1a2a', color: '#9090cf', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              Filtered .csv
+            </button>
+          </div>
         </div>
       </div>
 

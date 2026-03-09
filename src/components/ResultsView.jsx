@@ -174,18 +174,13 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
               </table>
 
               {/* Creator rows */}
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th><th>Name</th><th>Cat</th><th>Fmt</th>
-                      <th>Price</th><th>Offer</th><th>Disc</th>
-                      <th>Claimed</th><th>Actual</th><th>Z.CPM</th><th>Real CPM</th>
-                      <th>QS</th><th>E</th><th>Views</th><th>Ratio</th>
-                      <th>Stability</th><th>Face</th><th>Charisma</th>
-                      <th>Claimed ER</th><th>Real ER</th><th>ER Gap</th>
-                      <th>Cmnt Rate</th><th>Upload/days</th><th>Content</th>
-                      <th>Creative</th><th>Comment</th>
+                      {['#','Name','Cat','Fmt','Price','Offer','Disc','Claimed','Actual','Z.CPM','Real CPM','QS','E','Views','Ratio','Stability','Face','Charisma','Claimed ER','Real ER','ER Gap','Cmnt Rate','Upload/days','Content','Creative','Comment'].map(h => (
+                        <th key={h} style={{ position: 'sticky', top: 0, zIndex: 2, background: '#111', boxShadow: '0 1px 0 #333' }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -195,7 +190,9 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                         <tr key={i} style={{ background: DECISION_ROW_BG[r.decision] }}>
                           <td>{i + 1}</td>
                           <td>{r.link ? <a href={r.link} target="_blank" rel="noreferrer" style={{ color: '#4a9eff', textDecoration: 'none' }}>{r.name}</a> : r.name}</td>
-                          <td>{r.cat_profile || '—'}</td>
+                          <td style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                            {r.cat_profile ? <><span style={{ color: CAT_COLOR[r.cat_profile] || '#aaa', fontWeight: 700 }}>{CAT_LABEL[r.cat_profile]?.replace(/^.+ /, '') || r.cat_profile}</span>{r.category ? <span style={{ color: '#666' }}> - {r.category}</span> : ''}</> : '—'}
+                          </td>
                           <td>{r.format || '—'}</td>
                           <td className="num">{fmtMoney(r.price)}</td>
                           <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
@@ -372,7 +369,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
             <div style={{ color: '#888', marginBottom: 6, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.05em' }}>QS BREAKDOWN</div>
             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
               <tbody>
-                <tr><td style={{ color: '#666', paddingRight: 10 }}>Audience</td><td style={{ color: '#fff', textAlign: 'right' }}>{bd.aud.toFixed(3)}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>US {bd.us_pct}%×2.0 + T1 {bd.tier1_pct}%×0.8 + M25+ {bd.male25plus_pct}%×1.0 + M18-24 {bd.m1824_pct}%×0.2 × cat {bd.aud_mult}×</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>Audience</td><td style={{ color: '#fff', textAlign: 'right' }}>{bd.aud.toFixed(3)}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>US {bd.us_pct}%×2.0 + T1 {bd.tier1_pct}%×0.8 + TA {bd.ta_pct}%×1.0 + M18-24 {bd.m1824_pct}%×0.2 + M45+ {bd.m45_pct}%×0.2 × cat {bd.aud_mult}×</td></tr>
                 <tr><td style={{ color: '#666', paddingRight: 10 }}>× Stability</td><td style={{ color: bd.stab_mult < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.stab_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>{bd.stab_label}</td></tr>
                 <tr><td style={{ color: '#666', paddingRight: 10 }}>× ER</td><td style={{ color: bd.er_mult > 1 ? '#6fcf6f' : bd.er_mult < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.er_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>real ER {bd.er_pct}%</td></tr>
                 <tr><td style={{ color: '#666', paddingRight: 10 }}>× US penalty</td><td style={{ color: bd.us_penalty < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.us_penalty}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>US {bd.us_pct}%{bd.us_penalty < 1 ? ' < 15%' : ' ≥ 15%'}</td></tr>
@@ -389,37 +386,13 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
         );
       })()}
 
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
         <table>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#111' }}>
+          <thead>
             <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Decision</th>
-              <th>Cat</th>
-              <th>Fmt</th>
-              <th>Price</th>
-              <th>Offer</th>
-              <th>Disc</th>
-              <th>Claimed</th>
-              <th>Actual</th>
-              <th>Z.CPM</th>
-              <th>Real CPM</th>
-              <th>QS</th>
-              <th>E</th>
-              <th>Views</th>
-              <th>Ratio</th>
-              <th>Stability</th>
-              <th>Face</th>
-              <th>Charisma</th>
-              <th>Claimed ER</th>
-              <th>Real ER</th>
-              <th>ER Gap</th>
-              <th>Cmnt Rate</th>
-              <th>Upload/days</th>
-              <th>Content</th>
-              <th>Creative</th>
-              <th>Comment</th>
+              {['#','Name','Decision','Cat','Fmt','Price','Offer','Disc','Claimed','Actual','Z.CPM','Real CPM','QS','E','Views','Ratio','Stability','Face','Charisma','Claimed ER','Real ER','ER Gap','Cmnt Rate','Upload/days','Content','Creative','Comment'].map(h => (
+                <th key={h}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -471,7 +444,9 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                       {r.decision}
                     </span>
                   </td>
-                  <td>{r.cat_profile || '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                    {r.cat_profile ? <><span style={{ color: CAT_COLOR[r.cat_profile] || '#aaa', fontWeight: 700 }}>{CAT_LABEL[r.cat_profile]?.replace(/^.+ /, '') || r.cat_profile}</span>{r.category ? <span style={{ color: '#666' }}> - {r.category}</span> : ''}</> : '—'}
+                  </td>
                   <td>{r.format || '—'}</td>
                   <td className="num">{fmtMoney(r.price)}</td>
                   <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>

@@ -189,6 +189,7 @@ export default function App() {
     setCreators(savedSession.creators);
     setParseInfo(savedSession.parseInfo);
     setConfig(savedSession.config);
+    if (savedSession.approvedFromFile) setApprovedFromFile(savedSession.approvedFromFile);
     setStep('results');
   };
 
@@ -249,11 +250,9 @@ export default function App() {
 
       // ── Persist to localStorage ──
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          results: scored, summary: summ, creators: withCreative,
-          parseInfo, config, savedAt: Date.now(),
-        }));
-        setSavedSession({ results: scored, summary: summ, creators: withCreative, parseInfo, config, savedAt: Date.now() });
+        const session = { results: scored, summary: summ, creators: withCreative, parseInfo, config, savedAt: Date.now(), approvedFromFile: approvedFromFile || null };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        setSavedSession(session);
       } catch { }
     } catch (err) {
       alert(`Error: ${err.message}`);

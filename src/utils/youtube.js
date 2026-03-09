@@ -143,6 +143,11 @@ function analyzeContent(vids) {
   const n = vids.length;
   const alerts = [];
 
+  // New videos (<24h) — excluded from view calc, flagged here
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const newCount = vids.filter(v => v.pub >= oneDayAgo).length;
+  if (newCount > 0) alerts.push({ label: `New ${newCount}/${n}`, color: '#4a9eff', bg: '#0d1f3a' });
+
   // Sponsored — title or description signals
   const sponsoredCount = vids.filter(v => {
     const t = (v.title + ' ' + v.desc).toLowerCase();
@@ -200,8 +205,9 @@ function arrStdev(arr) {
 
 function analyzeViews(allVids, claimedViews) {
   const cutoff = getCutoff();
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const valid = allVids
-    .filter(v => !v.is_short && v.pub >= cutoff)
+    .filter(v => !v.is_short && v.pub >= cutoff && v.pub < oneDayAgo)
     .slice(0, TARGET_VIDEOS);
 
   if (!valid.length) {

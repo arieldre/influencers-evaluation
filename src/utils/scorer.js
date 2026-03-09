@@ -296,11 +296,12 @@ export function scoreCreators(creators, config = {}) {
     let qs = aud * stabMult;
 
     // ER
-    if (er > 0.05) qs *= 1.3;
-    else if (er < 0.03) qs *= 0.9;
+    const erMult = er > 0.05 ? 1.3 : er < 0.03 ? 0.9 : 1.0;
+    qs *= erMult;
 
     // Low US penalty
-    if (us < 0.15) qs *= 0.6;
+    const usPenalty = us < 0.15 ? 0.6 : 1.0;
+    qs *= usPenalty;
 
     // View multiplier
     let viewRatio = null, viewLabel = '', viewMult = 1.0, viewSource = 'none';
@@ -332,7 +333,8 @@ export function scoreCreators(creators, config = {}) {
         faceData.same_face === true ||
         faceData.mixed_high === true
       ));
-    if (faceConfirmed) qs *= 1.3;
+    const faceMult = faceConfirmed ? 1.3 : 1.0;
+    qs *= faceMult;
 
     qs = Math.round(qs * 1000) / 1000;
 
@@ -384,6 +386,22 @@ export function scoreCreators(creators, config = {}) {
       view_mult_used: viewMult,
       view_source: viewSource,
       auto_comment: autoComment,
+      qs_breakdown: {
+        aud: Math.round(aud * 1000) / 1000,
+        aud_mult: audMult,
+        cat: catKey,
+        us_pct: Math.round(us * 100),
+        tier1_pct: Math.round(tier1Rest * 100),
+        male25plus_pct: Math.round(male25plus * 100),
+        m1824_pct: Math.round((c.m1824 || 0) * 100),
+        stab_mult: stabMult,
+        stab_label: stabLabel,
+        er_mult: erMult,
+        er_pct: Math.round(er * 1000) / 10,
+        us_penalty: usPenalty,
+        view_mult: viewMult,
+        face_mult: faceMult,
+      },
     }));
   }
 

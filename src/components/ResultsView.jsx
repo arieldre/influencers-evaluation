@@ -71,6 +71,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
   const [activeTab, setActiveTab] = useState(forceTab || 'all');
   const [activeDecisions, setActiveDecisions] = useState(new Set(ALL_DECISIONS));
   const [viewFilter, setViewFilter] = useState('all');
+  const [qsTooltip, setQsTooltip] = useState(null); // { r, rect }
   const [sortBy, setSortBy] = useState('e_asc');
 
   const toggleDecision = (dec) => {
@@ -203,7 +204,10 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                           <td className="num">{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
                           <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                           <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
-                          <td className="num">{r.qs != null && r.qs !== 0 ? r.qs.toFixed(3) : '—'}</td>
+                          <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default', position: 'relative' }}
+                            onMouseEnter={r.qs_breakdown ? (e) => { const rect = e.currentTarget.getBoundingClientRect(); setQsTooltip({ r, x: rect.left, y: rect.bottom }); } : undefined}
+                            onMouseLeave={() => setQsTooltip(null)}
+                          >{r.qs != null && r.qs !== 0 ? <span style={{ borderBottom: r.qs_breakdown ? '1px dashed #4a9eff' : 'none' }}>{r.qs.toFixed(3)}</span> : '—'}</td>
                           <td className="num">{r.e != null && r.e !== 999 ? r.e.toFixed(3) : '—'}</td>
                           <td style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', color: r.view_label ? '#cfcf6f' : '#555' }}>{r.view_label || '—'}</td>
                           <td className="num">{r.view_ratio != null ? r.view_ratio.toFixed(2) + 'x' : '—'}</td>
@@ -349,9 +353,45 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
       </div>
 
       {/* ── Main table ── */}
+      {/* QS tooltip portal */}
+      {qsTooltip && (() => {
+        const b = qsTooltip;
+        const r = b.r;
+        const bd = r.qs_breakdown;
+        if (!bd) return null;
+        return (
+          <div
+            onMouseLeave={() => setQsTooltip(null)}
+            style={{
+              position: 'fixed', left: b.x, top: b.y + 6, zIndex: 9999,
+              background: '#1a1a1a', border: '1px solid #3a3a3a', borderRadius: 6,
+              padding: '10px 14px', fontSize: '0.75rem', color: '#ccc',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.6)', minWidth: 280, pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ color: '#888', marginBottom: 6, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.05em' }}>QS BREAKDOWN</div>
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <tbody>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>Audience</td><td style={{ color: '#fff', textAlign: 'right' }}>{bd.aud.toFixed(3)}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>US {bd.us_pct}%×2.0 + T1 {bd.tier1_pct}%×0.8 + M25+ {bd.male25plus_pct}%×1.0 + M18-24 {bd.m1824_pct}%×0.2 × cat {bd.aud_mult}×</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>× Stability</td><td style={{ color: bd.stab_mult < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.stab_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>{bd.stab_label}</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>× ER</td><td style={{ color: bd.er_mult > 1 ? '#6fcf6f' : bd.er_mult < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.er_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>real ER {bd.er_pct}%</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>× US penalty</td><td style={{ color: bd.us_penalty < 1 ? '#cf6f6f' : '#fff', textAlign: 'right' }}>{bd.us_penalty}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>US {bd.us_pct}%{bd.us_penalty < 1 ? ' < 15%' : ' ≥ 15%'}</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>× View mult</td><td style={{ color: bd.view_mult !== 1 ? '#cfcf6f' : '#fff', textAlign: 'right' }}>{bd.view_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>{r.view_ratio != null ? `${r.view_ratio.toFixed(2)}x actual/claimed` : 'no data'}</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: 10 }}>× Face</td><td style={{ color: bd.face_mult > 1 ? '#6fcf6f' : '#fff', textAlign: 'right' }}>{bd.face_mult}</td><td style={{ color: '#555', paddingLeft: 8, fontSize: '0.68rem' }}>{bd.face_mult > 1 ? 'confirmed presenter' : 'no face boost'}</td></tr>
+                <tr style={{ borderTop: '1px solid #333' }}>
+                  <td style={{ color: '#4a9eff', paddingRight: 10, paddingTop: 6, fontWeight: 700 }}>= QS</td>
+                  <td style={{ color: '#4a9eff', textAlign: 'right', paddingTop: 6, fontWeight: 700 }}>{r.qs?.toFixed(3)}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
       <div style={{ overflowX: 'auto' }}>
         <table>
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#111' }}>
             <tr>
               <th>#</th>
               <th>Name</th>
@@ -440,7 +480,10 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                   <td className="num">{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
                   <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                   <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
-                  <td className="num">{r.qs != null && r.qs !== 0 ? r.qs.toFixed(3) : '—'}</td>
+                  <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default' }}
+                    onMouseEnter={r.qs_breakdown ? (e) => { const rect = e.currentTarget.getBoundingClientRect(); setQsTooltip({ r, x: rect.left, y: rect.bottom }); } : undefined}
+                    onMouseLeave={() => setQsTooltip(null)}
+                  >{r.qs != null && r.qs !== 0 ? <span style={{ borderBottom: r.qs_breakdown ? '1px dashed #4a9eff' : 'none' }}>{r.qs.toFixed(3)}</span> : '—'}</td>
                   <td className="num">{r.e != null && r.e !== 999 ? r.e.toFixed(3) : '—'}</td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', color: r.view_label ? '#cfcf6f' : '#555' }}>
                     {r.view_label || '—'}

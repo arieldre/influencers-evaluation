@@ -114,21 +114,21 @@ h3 { font-size: 1.1rem; margin: 16px 0 8px; }
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: 0.7rem;
 }
 thead th {
   position: sticky;
   top: 0;
   background: #1a1a1a;
   text-align: left;
-  padding: 8px 6px;
+  padding: 6px 5px;
   border-bottom: 2px solid #333;
   white-space: nowrap;
   font-weight: 600;
   color: #ccc;
 }
 tbody td {
-  padding: 6px;
+  padding: 3px 5px;
   border-bottom: 1px solid #222;
   white-space: nowrap;
 }

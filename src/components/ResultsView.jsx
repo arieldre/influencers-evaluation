@@ -174,7 +174,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
               </table>
 
               {/* Creator rows */}
-              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
                 <table>
                   <thead>
                     <tr>
@@ -386,7 +386,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
         );
       })()}
 
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
         <table>
           <thead>
             <tr>

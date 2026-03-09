@@ -111,7 +111,7 @@ const MOBILE_KEYWORDS = [
   'world of tanks blitz','wot blitz','world of warships blitz',
 ];
 
-const AUTO_DECLINE_CATS = ['roblox', 'minecraft', 'fortnite'];
+const AUTO_DECLINE_CATS = ['roblox', 'minecraft', 'fortnite', 'brawl stars'];
 
 // ── Defaults (overridable via config param) ──
 const DEFAULTS = {
@@ -287,11 +287,11 @@ export function scoreCreators(creators, config = {}) {
       stabMult = 0.5; stabLabel = stability || 'unknown';
     }
 
-    // Audience score
+    // Audience score — use TA% directly (= Male 25-44, already the target demo)
     const { us, uk, ca, au } = parseGeo(c.geo);
     const tier1Rest = uk + ca + au;
-    const male25plus = (c.m2534 || 0) + (c.m3544 || 0) + (c.m45 || 0);
-    let aud = ((us * 2.0) + (tier1Rest * 0.8) + (male25plus * 1.0) + ((c.m1824 || 0) * 0.2)) * audMult;
+    const ta = c.ta || 0;
+    let aud = ((us * 2.0) + (tier1Rest * 0.8) + (ta * 1.0) + ((c.m1824 || 0) * 0.2) + ((c.m45 || 0) * 0.2)) * audMult;
 
     let qs = aud * stabMult;
 
@@ -365,7 +365,7 @@ export function scoreCreators(creators, config = {}) {
     if (dec === 'YELLOW' && zorkaCpm > 0) {
       const targetCpm = greenLim * cpmBench * qs;
       const d = Math.max((zorkaCpm - targetCpm) / zorkaCpm, 0);
-      offer = Math.round(price * (1 - d));
+      offer = Math.floor(price * (1 - d) / 100) * 100;
       discount = `${Math.round(d * 100)}%`;
     }
 
@@ -392,8 +392,9 @@ export function scoreCreators(creators, config = {}) {
         cat: catKey,
         us_pct: Math.round(us * 100),
         tier1_pct: Math.round(tier1Rest * 100),
-        male25plus_pct: Math.round(male25plus * 100),
+        ta_pct: Math.round(ta * 100),
         m1824_pct: Math.round((c.m1824 || 0) * 100),
+        m45_pct: Math.round((c.m45 || 0) * 100),
         stab_mult: stabMult,
         stab_label: stabLabel,
         er_mult: erMult,

@@ -383,6 +383,14 @@ export default function App() {
             />
             <span style={{ color: '#888' }}>of {creators.length} total</span>
             <span style={{ color: '#4a9eff', marginLeft: 8 }}>({Math.max(0, Math.min(creators.length, rangeEnd) - Math.max(1, rangeStart) + 1)} will be fetched)</span>
+            <span style={{ color: '#888', marginLeft: 16 }}>|</span>
+            <span style={{ color: '#ccc', marginLeft: 16 }}>OpenAI Key</span>
+            <input
+              value={openaiKey}
+              onChange={e => setOpenaiKey(e.target.value)}
+              placeholder="sk-proj-... (optional)"
+              style={{ width: 220 }}
+            />
           </div>
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>

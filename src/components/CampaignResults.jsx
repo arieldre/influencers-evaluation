@@ -4,6 +4,7 @@ import { runCorrelations, categoryBreakdown, generateInsights, strengthLabel } f
 import { detectCategoryProfile, scoreCreators, DEFAULTS } from '../utils/scorer';
 import { analyzeAll } from '../utils/youtube';
 import { detectFacesForAll } from '../utils/faceDetect';
+import { estimateCreativeAll } from '../utils/creative';
 
 const CAT_LABEL = { mobile: '📱 Mobile', non_gaming: '🌐 Non-Gaming', gaming: '🎮 Gaming' };
 const CAT_COLOR = { mobile: '#9eff6f', non_gaming: '#4a9eff', gaming: '#cf9fff' };
@@ -53,7 +54,8 @@ export default function CampaignResults({ approvedFromFile, results, apiKey, con
       const withFaces = await detectFacesForAll(updated, (i, total, name) => {
         setAnalyzeProgress({ phase: 'face', current: i, total, name });
       });
-      const scored = scoreCreators(withFaces, config || DEFAULTS);
+      const withCreative = estimateCreativeAll([...withFaces]);
+      const scored = scoreCreators(withCreative, config || DEFAULTS);
       setExtraResults(prev => {
         // merge: replace existing by name, append new
         const map = new Map(prev.map(r => [normalizeName(r.name), r]));
@@ -341,7 +343,7 @@ export default function CampaignResults({ approvedFromFile, results, apiKey, con
                           {m.e != null && m.e < 900 ? m.e.toFixed(3) : '—'}
                         </td>
                         <td className="num">{m.charisma?.charisma != null ? m.charisma.charisma : '—'}</td>
-                        <td className="num">{m.creative?.score != null ? `${m.creative.score}/10` : '—'}</td>
+                        <td className="num">{m.creative?.score != null ? <span title={m.creative.reason || ''}>{m.creative.score}/10{m.creative.estimated ? <span style={{ opacity: 0.6, fontWeight: 400 }}> est.</span> : null}</span> : '—'}</td>
                         <td className="num">{m.qs_breakdown?.us_pct != null ? `${m.qs_breakdown.us_pct}%` : '—'}</td>
                         <td className="num">{fmtM(m.price)}</td>
                         <td className="num">{fmtM(m.cost)}</td>

@@ -230,6 +230,8 @@ export function scoreCreators(creators, config = {}) {
         price,
         claimed_views: claimedViews,
         actual_avg: actualAvg,
+        view_video_count: api.video_count ?? null,
+        view_median: api.median ?? null,
         zorka_cpm: zorkaCpm,
         real_cpm: 0,
         qs: 0,

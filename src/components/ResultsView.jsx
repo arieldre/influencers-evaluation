@@ -198,7 +198,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                           <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
                           <td>{r.discount || '—'}</td>
                           <td className="num">{fmt(r.claimed_views)}</td>
-                          <td className="num">{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
+                          <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
                           <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                           <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
                           <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default', position: 'relative' }}
@@ -259,7 +259,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                               const s = r.creative.score;
                               const col = s >= 7 ? '#6fcf6f' : s >= 4 ? '#cfcf6f' : '#cf6f6f';
                               const bg  = s >= 7 ? '#1a4d1a' : s >= 4 ? '#4d4d1a' : '#4d1a1a';
-                              return <span title={r.creative.reason} style={{ background: bg, color: col, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>{s}/10</span>;
+                              return <span title={r.creative.reason} style={{ background: bg, color: col, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}>{s}/10{r.creative.estimated ? <span style={{ opacity: 0.6, fontWeight: 400 }}> est.</span> : null}</span>;
                             })() : <span style={{ color: '#444', fontSize: '0.75rem' }}>—</span>}
                           </td>
                           <td style={{ fontSize: '0.78rem', color: '#999', minWidth: 160 }}>{r.auto_comment || '—'}</td>
@@ -452,7 +452,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                   <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
                   <td>{r.discount || '—'}</td>
                   <td className="num">{fmt(r.claimed_views)}</td>
-                  <td className="num">{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
+                  <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
                   <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                   <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
                   <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default' }}
@@ -544,7 +544,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                           return (
                             <span title={r.creative.reason}
                               style={{ background: bg, color, padding: '2px 7px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap' }}>
-                              {s}/10
+                              {s}/10{r.creative.estimated ? <span style={{ opacity: 0.6, fontWeight: 400 }}> est.</span> : null}
                             </span>
                           );
                         })()

@@ -5,7 +5,7 @@ import { parseExcel, parseApprovedSheet } from './utils/parseExcel';
 import { analyzeAll } from './utils/youtube';
 import { scoreCreators, summarizeResults, DEFAULTS, detectCategoryProfile } from './utils/scorer';
 import { detectFacesForAll } from './utils/faceDetect';
-import { analyzeCreativeAll } from './utils/creative';
+import { analyzeCreativeAll, estimateCreativeAll } from './utils/creative';
 import HelpModal from './components/HelpModal';
 import CampaignResults from './components/CampaignResults';
 
@@ -234,10 +234,12 @@ export default function App() {
         setProgress({ current: i, total, name, phase: 'face' });
       });
 
-      let withCreative = withFaces;
+      // Always run heuristic estimate (free, uses already-fetched titles)
+      let withCreative = estimateCreativeAll([...withFaces]);
+
       if (openaiKey) {
         setProgress({ current: 0, total: withFaces.length, name: '', phase: 'creative' });
-        withCreative = await analyzeCreativeAll(openaiKey, [...withFaces], (i, total, name) => {
+        withCreative = await analyzeCreativeAll(openaiKey, withCreative, (i, total, name) => {
           setProgress({ current: i, total, name, phase: 'creative' });
         });
       }

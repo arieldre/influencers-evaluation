@@ -269,6 +269,12 @@ function analyzeViews(allVids, claimedViews) {
   // Content alerts from titles/descriptions
   const content_alerts = analyzeContent(valid);
 
+  // Shorts excluded from stats — show count for transparency
+  const recentShorts = allVids.filter(v => v.is_short && v.pub >= cutoff && v.pub < oneDayAgo);
+  if (recentShorts.length > 0) {
+    content_alerts.push({ label: `Shorts ${recentShorts.length}/${recentShorts.length + valid.length}`, color: '#a0a0ff', bg: '#1a1a3a' });
+  }
+
   // Real ER and comment rate from API data (zero extra quota)
   const withViews = valid.filter(v => v.views > 0);
   const real_er = withViews.length
@@ -289,12 +295,27 @@ function analyzeViews(allVids, claimedViews) {
     upload_freq = Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length * 10) / 10;
   }
 
+  // View trend — newest half vs oldest half (requires ≥4 videos)
+  let view_trend = null;
+  if (valid.length >= 4) {
+    const byDate = [...valid].sort((a, b) => b.pub - a.pub);
+    const half = Math.floor(byDate.length / 2);
+    const newAvg = byDate.slice(0, half).reduce((s, v) => s + v.views, 0) / half;
+    const oldAvg = byDate.slice(half).reduce((s, v) => s + v.views, 0) / (byDate.length - half);
+    const trendRatio = oldAvg > 0 ? newAvg / oldAvg : 1;
+    view_trend = {
+      direction: trendRatio >= 1.15 ? 'up' : trendRatio <= 0.85 ? 'down' : 'flat',
+      ratio: Math.round(trendRatio * 100) / 100,
+    };
+  }
+
   return {
     stability: stab, cv, avg, median: med,
     video_count: viewsList.length, view_label: viewLabel,
     ratio, video_ids: videoIds,
     real_er, comment_rate, upload_freq,
     content_alerts,
+    view_trend,
     _videos: valid,
     _video_titles: valid.map(v => v.title),
     api_notes: apiNotes,

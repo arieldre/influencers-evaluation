@@ -198,7 +198,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                           <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
                           <td>{r.discount || '—'}</td>
                           <td className="num">{fmt(r.claimed_views)}</td>
-                          <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
+                          <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? <>{fmt(r.actual_avg)}{r.view_trend ? <span title={`${r.view_trend.direction === 'up' ? '+' : r.view_trend.direction === 'down' ? '−' : ''}${Math.round(Math.abs((r.view_trend.ratio - 1) * 100))}% trend (newest vs oldest videos)`} style={{ marginLeft: 3, color: r.view_trend.direction === 'up' ? '#6fcf6f' : r.view_trend.direction === 'down' ? '#cf6f6f' : '#888' }}>{r.view_trend.direction === 'up' ? '↑' : r.view_trend.direction === 'down' ? '↓' : '→'}</span> : null}</> : '—'}</td>
                           <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                           <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
                           <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default', position: 'relative' }}
@@ -452,7 +452,7 @@ export default function ResultsView({ summary, onFaceOverride, forceTab }) {
                   <td className="num">{typeof r.offer === 'number' ? fmtMoney(r.offer) : '—'}</td>
                   <td>{r.discount || '—'}</td>
                   <td className="num">{fmt(r.claimed_views)}</td>
-                  <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? fmt(r.actual_avg) : '—'}</td>
+                  <td className="num" title={r.view_video_count != null ? `Based on ${r.view_video_count} video${r.view_video_count !== 1 ? 's' : ''} | Median: ${fmt(r.view_median)}` : undefined} style={{ cursor: r.view_video_count != null ? 'help' : 'default' }}>{r.actual_avg ? <>{fmt(r.actual_avg)}{r.view_trend ? <span title={`${r.view_trend.direction === 'up' ? '+' : r.view_trend.direction === 'down' ? '−' : ''}${Math.round(Math.abs((r.view_trend.ratio - 1) * 100))}% trend (newest vs oldest videos)`} style={{ marginLeft: 3, color: r.view_trend.direction === 'up' ? '#6fcf6f' : r.view_trend.direction === 'down' ? '#cf6f6f' : '#888' }}>{r.view_trend.direction === 'up' ? '↑' : r.view_trend.direction === 'down' ? '↓' : '→'}</span> : null}</> : '—'}</td>
                   <td className="num">{r.zorka_cpm?.toFixed(1) ?? '—'}</td>
                   <td className="num">{typeof r.real_cpm === 'number' && r.real_cpm > 0 ? r.real_cpm.toFixed(1) : '—'}</td>
                   <td className="num" style={{ cursor: r.qs_breakdown ? 'help' : 'default' }}

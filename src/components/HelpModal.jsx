@@ -79,7 +79,7 @@ export default function HelpModal({ onClose }) {
           <strong style={{ color: '#eee' }}>5. Charisma Score</strong> — Computed from the video stats already fetched in step 3 (zero extra API calls). Measures how actively the audience engages, not just passively watches. See the Charisma column reference below.
         </p>
         <p style={S.p}>
-          <strong style={{ color: '#eee' }}>6. Creative Score (optional)</strong> — If an OpenAI API key is entered, the last 10 video titles are sent to GPT-4o mini, which rates originality 1–10 and returns a one-sentence reason. Informational only — does not affect QS. Leave blank to skip.
+          <strong style={{ color: '#eee' }}>6. Creative Score</strong> — A heuristic originality score (1–10) is <em>always</em> computed from the last 10 video titles fetched in step 3 — no extra API calls needed. It analyses 6 signals: formulaic template usage, cross-title vocabulary repetition, title length variety, clickbait intensity (ALL CAPS / !! patterns), named entity diversity (how many different games/topics appear), and sentiment variety (mix of positive + negative emotional language). The result is shown as <strong>"X/10 est."</strong> If you enter an OpenAI API key, GPT-4o mini re-scores each creator with semantic understanding and the "est." label is removed. Informational only — does not affect QS or decisions.
         </p>
         <p style={S.p}>
           <strong style={{ color: '#eee' }}>7. Scoring</strong> — Each creator gets a Quality Score (QS) and an Efficiency ratio (E). E drives the decision: GREEN (good deal), YELLOW (negotiate), RED (too expensive / low quality). YELLOW creators get an auto-calculated counter-offer price to bring E into GREEN range.
@@ -200,24 +200,31 @@ export default function HelpModal({ onClose }) {
               For JMG format, the face flag is pre-filled from the spreadsheet and marked "Yes (JMG)" instead of running ML.
             </Row>
             <Row label="Charisma">
-              0–100 score computed from video engagement statistics already fetched in the YouTube step (zero extra API calls). Measures how actively the audience participates, not just how many people watch.<br/><br/>
-              <strong>Weights:</strong><br/>
-              • Comment rate (comments÷views) — <strong>45%</strong>. The strongest signal. People who write actually care about the creator.<br/>
-              • Like rate (likes÷views) — <strong>30%</strong>. Measures resonance — how much content moves the audience to react.<br/>
-              • Like-to-comment ratio — <strong>15%</strong>. Low ratio (e.g. 20:1) means real conversation; high ratio (e.g. 500:1) means passive clicks.<br/>
-              • Comment consistency (CV) — <strong>10%</strong>. Low variance = the audience reliably shows up, not just for viral spikes.<br/><br/>
+              0–100 score computed from video engagement statistics already fetched in the YouTube step (zero extra API calls). Measures how actively the audience participates, not just how many people watch. Calibrated to real gaming/mobile YouTube benchmarks (Social Status / Marketing Charts 2024).<br/><br/>
+              <strong>Weights &amp; benchmarks:</strong><br/>
+              • <strong>Comment rate</strong> (comments÷views) — <strong>45%</strong>. Strongest signal per academic research (PMC 2022). Gaming avg: 0.078%. Score ceiling at 0.3% (exceptional). People who comment genuinely care.<br/>
+              • <strong>Like rate</strong> (likes÷views) — <strong>30%</strong>. Gaming avg: 5.47%. Ceiling at 10%. Measures resonance — how much content moves the audience to react.<br/>
+              • <strong>Like-to-comment ratio</strong> — <strong>15%</strong>. Gaming avg is ~70:1. Below 40:1 = genuinely conversational audience. Above 150:1 = passive (likes but never writes). Linear scale between those points.<br/>
+              • <strong>Comment consistency</strong> (CV) — <strong>10%</strong>. Low variance = audience reliably shows up, not just for viral spikes.<br/><br/>
               <strong>High ≥ 68 | Medium ≥ 42 | Low &lt; 42</strong><br/>
-              Hover the badge to see like rate %, comment rate %, like/comment ratio, and consistency CV. Informational only — does not affect QS.
+              Hover the badge to see like rate %, comment rate %, like/comment ratio, and comment CV. Informational only — does not affect QS.
             </Row>
             <Row label="Real ER">Actual engagement rate from API: avg(likes ÷ views) across last 10 videos. Compare to Zorka's claimed ER to spot inflation.</Row>
             <Row label="Cmnt Rate">avg(comments ÷ views) — measures how much the audience is motivated to write, not just watch.</Row>
             <Row label="Upload/days">Average days between uploads. Lower = more consistent. e.g. 7d = weekly cadence.</Row>
             <Row label="Creative">
-              GPT-4o mini originality score (1–10) based on the creator's last 10 video titles. The model is asked to evaluate whether the content has a genuinely unique creative angle, vs. just following trends or copying popular formats.<br/><br/>
-              <strong>7–10</strong> = genuinely unique concept or creative format.<br/>
-              <strong>4–6</strong> = somewhat distinctive — some original elements but follows established patterns.<br/>
-              <strong>1–3</strong> = generic content — indistinguishable from hundreds of similar channels.<br/><br/>
-              Hover the badge to read the one-sentence reason GPT gave. Only available when an OpenAI API key is configured. Informational only — does not affect QS or decisions.
+              Originality score 1–10 based on the creator's last 10 video titles. Always computed as a heuristic estimate ("X/10 est.") — no API key needed. If an OpenAI key is provided, GPT-4o mini re-scores with semantic understanding and the "est." label is removed.<br/><br/>
+              <strong>Heuristic signals (6 total):</strong><br/>
+              • <strong>Template ratio</strong> (penalty) — titles matching formulaic patterns: "Top N", "Part N", "vs", "How To", "grind", "gone wrong", "exposed", etc.<br/>
+              • <strong>Vocabulary overlap</strong> (penalty) — cross-title Jaccard similarity. Channels recycling the same words across titles score lower.<br/>
+              • <strong>Clickbait intensity</strong> (penalty) — density of ALL CAPS words and excess punctuation (!!). Based on ResearchGate 2022 linguistic study on YouTube clickbait.<br/>
+              • <strong>Title length variety</strong> (bonus) — coefficient of variation across title lengths. Varied structure = more creative range.<br/>
+              • <strong>Named entity diversity</strong> (bonus) — unique proper nouns (game names, characters, places) across titles. Covering many different topics = more creative breadth. Based on ScienceDirect 2024 research.<br/>
+              • <strong>Sentiment variety</strong> (bonus) — using both positive ("epic", "legendary") and negative ("failed", "rage") emotional language. Monotone tone = lower creative range.<br/><br/>
+              <strong>7–10</strong> = varied, original, diverse topics.<br/>
+              <strong>4–6</strong> = some originality, mixed signals.<br/>
+              <strong>1–3</strong> = formulaic, repetitive, or clickbait-heavy.<br/><br/>
+              Hover the badge to see the reason. Informational only — does not affect QS or decisions.
             </Row>
             <Row label="Comment">Auto-generated notes: stability label, category profile, view label source, sub mismatch warnings.</Row>
           </tbody>

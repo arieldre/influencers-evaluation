@@ -259,7 +259,7 @@ export default function App() {
       alert(`Error: ${err.message}`);
       setStep('config');
     }
-  }, [creators, apiKey, config, rangeStart, rangeEnd]);
+  }, [creators, apiKey, config, rangeStart, rangeEnd, approvedFromFile]);
 
   const updateConfig = (key, val) => {
     setConfig(prev => ({ ...prev, [key]: parseFloat(val) || 0 }));

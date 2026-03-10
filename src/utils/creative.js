@@ -31,10 +31,15 @@ Respond ONLY with a JSON array, one entry per creator, in order:
     }),
   });
 
-  if (!res.ok) return batch.map(() => null);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.status);
+    console.error('[creative] API error', res.status, errText);
+    return batch.map(() => null);
+  }
 
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content?.trim() || '[]';
+  console.log('[creative] raw response:', text);
   try {
     const arr = JSON.parse(text);
     return batch.map((_, i) => {

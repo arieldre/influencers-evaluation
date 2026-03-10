@@ -7,8 +7,9 @@ import { scoreCreators, summarizeResults, DEFAULTS, detectCategoryProfile } from
 import { detectFacesForAll } from './utils/faceDetect';
 import { analyzeCreativeAll } from './utils/creative';
 import HelpModal from './components/HelpModal';
+import CampaignResults from './components/CampaignResults';
 
-const DEFAULT_API_KEY = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
+const DEFAULT_API_KEY    = 'AIzaSyAhUmhy4INV8O7m7Q2sVSqoy0a3TXh5MH0';
 
 const CAT_ORDER_APP  = ['mobile', 'non_gaming', 'gaming'];
 const CAT_LABEL_APP  = { mobile: '📱 Mobile', non_gaming: '🌐 Non-Gaming', gaming: '🎮 Gaming' };
@@ -318,17 +319,18 @@ export default function App() {
       {/* ── Top-level tabs ── */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
         {[
-          { id: 'all',      label: 'All' },
-          { id: 'approved', label: `Approved${summary ? ` (${summary.greens?.length ?? 0})` : ''}` },
-        ].map(tab => (
+          { id: 'all',      label: 'All',             accent: '#4a9eff', activeBg: '#0d1220' },
+          { id: 'approved', label: `Approved${summary ? ` (${summary.greens?.length ?? 0})` : ''}`, accent: '#6fcf6f', activeBg: '#0d1f0d' },
+          { id: 'compare',  label: 'Compare Results', accent: '#f0a030', activeBg: '#1a1000' },
+        ].map((tab, idx, arr) => (
           <button key={tab.id} onClick={() => setAppTab(tab.id)} style={{
             padding: '7px 22px',
             border: '1px solid #2a2a2a',
-            borderBottom: appTab === tab.id ? `2px solid ${tab.id === 'approved' ? '#6fcf6f' : '#4a9eff'}` : '1px solid #2a2a2a',
-            background: appTab === tab.id ? (tab.id === 'approved' ? '#0d1f0d' : '#0d1220') : '#111',
-            color: appTab === tab.id ? (tab.id === 'approved' ? '#6fcf6f' : '#4a9eff') : '#555',
+            borderBottom: appTab === tab.id ? `2px solid ${tab.accent}` : '1px solid #2a2a2a',
+            background: appTab === tab.id ? tab.activeBg : '#111',
+            color: appTab === tab.id ? tab.accent : '#555',
             cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
-            borderRadius: tab.id === 'all' ? '6px 0 0 6px' : '0 6px 6px 0',
+            borderRadius: idx === 0 ? '6px 0 0 6px' : idx === arr.length - 1 ? '0 6px 6px 0' : '0',
             transition: 'all 0.12s',
           }}>{tab.label}</button>
         ))}
@@ -336,6 +338,11 @@ export default function App() {
 
       {/* ── Approved tab view (from Excel "Approved" sheet) ── */}
       {appTab === 'approved' && <ApprovedSheetView creators={approvedFromFile} />}
+
+      {/* ── Compare Results tab ── */}
+      {appTab === 'compare' && (
+        <CampaignResults approvedFromFile={approvedFromFile} results={results} apiKey={apiKey} config={config} />
+      )}
 
       {appTab === 'all' && <>
 
@@ -352,6 +359,15 @@ export default function App() {
             </div>
           )}
           <FileUpload onFileLoaded={handleFile} />
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, color: '#666', fontSize: '0.8rem' }}>
+            <span style={{ whiteSpace: 'nowrap' }}>OpenAI Key (optional — for originality scoring)</span>
+            <input
+              value={openaiKey}
+              onChange={e => setOpenaiKey(e.target.value)}
+              placeholder="sk-proj-..."
+              style={{ flex: 1, maxWidth: 320 }}
+            />
+          </div>
         </>
       )}
 
